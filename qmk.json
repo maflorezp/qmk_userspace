@@ -3,17 +3,7 @@
     "build_targets": [
         [
             "sofle/rev1",
-            "maflorezp",
-            {
-                "HAND": "left"
-            }
-        ],
-        [
-            "sofle/rev1",
-            "maflorezp",
-            {
-                "HAND": "right"
-            }
+            "maflorezp"
         ]
     ]
 }
