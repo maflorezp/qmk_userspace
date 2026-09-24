@@ -4,6 +4,11 @@
 #      ./build.sh hands      -> además, un .uf2 por mitad que graba el lado en la EEPROM
 #                               (solo hace falta la primera vez o después de borrar la EEPROM)
 #      ./build.sh pinscan    -> además, firmware de diagnóstico de pines para la mitad derecha
+#      ./build.sh i2cscan    -> además, firmware de diagnóstico que busca la OLED en el bus I2C
+#      ./build.sh oledtest   -> además, firmware de diagnóstico con todos los píxeles de las OLED encendidos
+#
+# El firmware normal queda además en firmware/pending/ (sofle_L.uf2 y sofle_R.uf2) para que
+# tools/flash_watcher.py lo cargue en cada mitad. Con "hands" se encolan las versiones con lado.
 set -euo pipefail
 
 USERSPACE_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -43,4 +48,22 @@ if [[ "${1:-}" == "pinscan" ]]; then
     compile sofle_right_pinscan right -e PIN_SCAN=yes
 fi
 
-ls -la "$OUTPUT_DIR"
+if [[ "${1:-}" == "i2cscan" ]]; then
+    compile sofle_i2cscan "" -e I2C_SCAN=yes
+fi
+
+if [[ "${1:-}" == "oledtest" ]]; then
+    compile sofle_oledtest "" -e OLED_TEST=yes
+fi
+
+# Encola el firmware para tools/flash_watcher.py
+mkdir -p "$OUTPUT_DIR/pending"
+if [[ "${1:-}" == "hands" ]]; then
+    cp "$OUTPUT_DIR/sofle_left.uf2" "$OUTPUT_DIR/pending/sofle_L.uf2"
+    cp "$OUTPUT_DIR/sofle_right.uf2" "$OUTPUT_DIR/pending/sofle_R.uf2"
+else
+    cp "$OUTPUT_DIR/sofle.uf2" "$OUTPUT_DIR/pending/sofle_L.uf2"
+    cp "$OUTPUT_DIR/sofle.uf2" "$OUTPUT_DIR/pending/sofle_R.uf2"
+fi
+
+ls -la "$OUTPUT_DIR" "$OUTPUT_DIR/pending"
