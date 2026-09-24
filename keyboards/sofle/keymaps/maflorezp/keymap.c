@@ -83,7 +83,7 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
     switch (keycode) {
         case CK_RGB1:
             if (record->event.pressed) {
-                rgblight_set_layer_state(0, !rgblight_get_layer_state(0));
+                layer_colors_toggle_manual();
             }
             return false;
         case CK_HAND:
@@ -107,8 +107,37 @@ bool dynamic_macro_record_end_user(int8_t direction) {
     return true;
 }
 
-#ifdef PIN_SCAN_ENABLE
-void housekeeping_task_user(void) {
-    pin_scan_task();
+void keyboard_post_init_user(void) {
+    layer_colors_init();
+    version_init();
 }
+
+void housekeeping_task_user(void) {
+    layer_colors_task();
+    version_task();
+#ifdef PIN_SCAN_ENABLE
+    pin_scan_task();
 #endif
+#ifdef I2C_SCAN_ENABLE
+    i2c_scan_task();
+#endif
+}
+
+// Al entrar en modo de carga (QK_BOOT) el firmware deja de correr: se deja la tira en rojo y
+// "CARGA" en la OLED de la mitad USB, porque los LEDs y la pantalla conservan lo último que recibieron.
+// Con el doble toque de reset o Bootmagic no hay aviso: el salto ocurre antes de iniciar la tira.
+bool shutdown_user(bool jump_to_bootloader) {
+    if (jump_to_bootloader) {
+        rgblight_layers = NULL;
+        rgblight_enable_noeeprom();
+        rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+        rgblight_setrgb(RGB_RED);
+#ifdef OLED_ENABLE
+        oled_clear();
+        oled_write_P(PSTR("CARGA"), true);
+        oled_render_dirty(true);
+#endif
+        wait_ms(10);
+    }
+    return false;
+}

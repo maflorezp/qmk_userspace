@@ -24,7 +24,18 @@
 #define I2C_DRIVER I2CD0
 #define I2C1_SDA_PIN GP16
 #define I2C1_SCL_PIN GP17
-#define OLED_TIMEOUT 30000
+#ifdef OLED_TEST_ENABLE
+#    define OLED_TIMEOUT 0
+#    define OLED_BRIGHTNESS 255
+#else
+#    define OLED_TIMEOUT 30000
+#endif
+
+// --- Identificación USB ---
+// El VID/PID no cambia (VIA reconoce el teclado por ahí); el número de serie lleva la versión
+#undef PRODUCT
+#define PRODUCT "Sofle Pico"
+#define SERIAL_NUMBER "maflorezp-" BUILD_ID "-" BUILD_VARIANT
 
 // --- Teclado partido ---
 // Cada mitad sabe de qué lado es por lo grabado en su EEPROM (se graba al flashear con flash.sh).
@@ -46,6 +57,21 @@
 #define RGBLIGHT_LED_MAP { 3, 2, 1, 0, 4, 5, 6, 7 }
 #define RGBLIGHT_LAYERS
 #define RGBLIGHT_MAX_LAYERS 8
+// Las capas de luz usan el brillo elegido en VIA (Lighting) en vez de uno fijo
+#define RGBLIGHT_LAYERS_RETAIN_VAL
+// Techo de brillo configurable desde VIA (por defecto 60 %): QMK solo lo compara en tiempo de
+// ejecución, así que puede ser una variable en vez de una constante
+#ifndef __ASSEMBLER__
+#    include <stdint.h>
+extern uint8_t rgblight_limit_val;
+#endif
+#define RGBLIGHT_LIMIT_VAL rgblight_limit_val
+// Tabla en la EEPROM: 1 byte de control + 8 elementos x (activo, tono, saturación) + brillo máximo
+#define EECONFIG_USER_DATA_SIZE 26
+// Mensaje entre mitades para que la izquierda reciba los colores que se editan en VIA
+#define SPLIT_TRANSACTION_IDS_USER RPC_ID_USER_LAYER_COLORS, RPC_ID_USER_VERSION
+// Sin esto la mitad sin USB no se entera de que se teclea: su OLED se apagaba a los 30 s y no volvía
+#define SPLIT_ACTIVITY_ENABLE
 #define RGBLIGHT_HUE_STEP 4
 #define RGBLIGHT_SAT_STEP 4
 #define RGBLIGHT_EFFECT_BREATHING
@@ -65,6 +91,9 @@
 #define ONESHOT_TIMEOUT 2000
 #define BOTH_SHIFTS_TURNS_ON_CAPS_WORD
 #define CAPS_WORD_IDLE_TIMEOUT 3000
+
+// VIA: las 6 capas del keymap quedan editables desde usevia.app
+#define DYNAMIC_KEYMAP_LAYER_COUNT 6
 
 #define TRI_LAYER_LOWER_LAYER 1
 #define TRI_LAYER_UPPER_LAYER 2
