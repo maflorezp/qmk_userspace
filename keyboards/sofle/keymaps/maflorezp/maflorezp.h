@@ -15,7 +15,6 @@ enum layers {
 enum custom_keycodes {
     CK_RGB1 = QK_KB_0,
     CK_HAND,
-    CK_MIC, // silencia el micrófono: Win + Ctrl + clic central (atajo de sxhkd)
 };
 
 // Tap dances (lógica en tap_dance.c, arreglo tap_dance_actions en keymap.c)

@@ -27,15 +27,15 @@ TD(TD_MODS_LEFT),     KC_A,        KC_S,        KC_D,        KC_F,        KC_G, 
 ),
 
 [_LOWER] = LAYOUT(
-     _______,      KC_GRV, RALT(KC_QUOT),   KC_UNDS,     KC_TILD, LCA(KC_PSCR),                              XXXXXXX,      KC_INS,     KC_HOME,     KC_PGUP,     KC_PSCR, TO(_QWERTY),
+     _______,      KC_GRV, RALT(KC_QUOT),   KC_UNDS,     KC_TILD,   LCG(KC_M),                               KC_PSCR,      KC_INS,     KC_HOME,     KC_PGUP,     XXXXXXX, TO(_QWERTY),
      _______,     KC_DQUO,     KC_QUOT,     KC_LPRN,     KC_RPRN,      KC_EQL,                            C(KC_PSCR),      KC_DEL,      KC_END,     KC_PGDN,     KC_CALC,     _______,
      _______,     KC_LABK,     KC_RABK,     KC_LBRC,     KC_RBRC,     KC_MINS,                            A(KC_PSCR),     KC_LEFT,       KC_UP,     KC_RGHT,    KC_COLON,     _______,
-     _______,     KC_PIPE,     KC_PLUS,     KC_LCBR,     KC_RCBR,     KC_BSLS,     _______,      CK_MIC,  S(KC_PSCR),     KC_LEFT,     KC_DOWN,     KC_RGHT, KC_QUESTION,     _______,
+     _______,     KC_PIPE,     KC_PLUS,     KC_LCBR,     KC_RCBR,     KC_BSLS,     _______,   LCG(KC_M),  S(KC_PSCR),     KC_LEFT,     KC_DOWN,     KC_RGHT, KC_QUESTION,     _______,
                   _______,     _______,     _______,     _______,      KC_SPC,                                KC_ENT,     _______,     _______,     _______,     _______
 ),
 
 [_RAISE] = LAYOUT(
-     _______,     C(KC_Z),     C(KC_X),     C(KC_C),     C(KC_V),     XXXXXXX,                               KC_PSCR,     KC_SCRL,     KC_PAUS,      KC_F11,      KC_F12, TO(_QWERTY),
+     _______,     XXXXXXX,     XXXXXXX,     XXXXXXX,     XXXXXXX,     XXXXXXX,                               XXXXXXX,     KC_SCRL,     KC_PAUS,      KC_F11,      KC_F12, TO(_QWERTY),
      _______,       KC_F1,       KC_F2,       KC_F3,       KC_F4,       KC_F5,                                 KC_F6,       KC_F7,       KC_F8,       KC_F9,      KC_F10,     _______,
      _______,        KC_1,        KC_2,        KC_3,        KC_4,        KC_5,                                  KC_6,        KC_7,        KC_8,        KC_9,        KC_0,     _______,
      _______,     KC_EXLM,       KC_AT,     KC_HASH,      KC_DLR,     KC_PERC,     KC_MNXT,     KC_EXEC,     KC_CIRC,     KC_AMPR,     KC_ASTR,     KC_LPRN,     KC_RPRN,     _______,
@@ -69,7 +69,9 @@ TD(TD_MODS_LEFT),     KC_A,        KC_S,        KC_D,        KC_F,        KC_G, 
 
 #if defined(ENCODER_MAP_ENABLE)
 // Índice 0 = encoder izquierdo (no instalado), índice 1 = encoder derecho:
-// base = volumen, LOWER = rueda del mouse, RAISE = Re Pág / Av Pág
+// base = volumen, LOWER = rueda del mouse, RAISE = Re Pág / Av Pág.
+// En LOWER, el clic del encoder y la tecla del 5 silencian el micrófono con Win + Ctrl + M
+// (atajo de sxhkd "super + ctrl + {button2,m}"); es más confiable que el clic central del mouse.
 const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
     [_QWERTY]  = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU),  ENCODER_CCW_CW(KC_VOLD, KC_VOLU)       },
     [_LOWER]   = { ENCODER_CCW_CW(KC_UP, KC_DOWN),    ENCODER_CCW_CW(MS_WHLU, MS_WHLD)       },
@@ -90,16 +92,6 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case CK_RGB1:
             if (record->event.pressed) {
                 layer_colors_toggle_manual();
-            }
-            return false;
-        case CK_MIC:
-            // Win + Ctrl + clic central: el atajo de sxhkd que silencia el micrófono
-            if (record->event.pressed) {
-                register_mods(MOD_BIT(KC_LGUI) | MOD_BIT(KC_LCTL));
-                register_code(MS_BTN3);
-            } else {
-                unregister_code(MS_BTN3);
-                unregister_mods(MOD_BIT(KC_LGUI) | MOD_BIT(KC_LCTL));
             }
             return false;
         case CK_HAND:
