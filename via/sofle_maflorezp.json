@@ -12,10 +12,10 @@
   "menus": [
     "qmk_rgblight",
     {
-      "label": "Colores por capa",
+      "label": "Ajustes del Sofle",
       "content": [
         {
-          "label": "Brillo",
+          "label": "Tira LED",
           "content": [
             {
               "label": "Brillo máximo (%)",
@@ -25,9 +25,107 @@
                 100
               ],
               "content": [
-                "id_brightness_limit",
+                "id_rgb_limit",
                 0,
                 17
+              ]
+            },
+            {
+              "label": "Apagado sin teclear (s, 0 = nunca)",
+              "type": "range",
+              "options": [
+                0,
+                255
+              ],
+              "content": [
+                "id_rgb_timeout",
+                0,
+                22
+              ]
+            }
+          ]
+        },
+        {
+          "label": "Pantalla",
+          "content": [
+            {
+              "label": "Apagado sin teclear (s, 0 = nunca)",
+              "type": "range",
+              "options": [
+                0,
+                255
+              ],
+              "content": [
+                "id_display_timeout",
+                0,
+                18
+              ]
+            },
+            {
+              "label": "Brillo (%)",
+              "type": "range",
+              "options": [
+                0,
+                100
+              ],
+              "content": [
+                "id_display_brightness",
+                0,
+                19
+              ]
+            },
+            {
+              "label": "Parpadeos por segundo (0 = sin parpadeo)",
+              "type": "range",
+              "options": [
+                0,
+                5
+              ],
+              "content": [
+                "id_display_blinks",
+                0,
+                21
+              ]
+            },
+            {
+              "label": "Animación contra el quemado",
+              "type": "dropdown",
+              "options": [
+                "Ninguna",
+                "Culebrita",
+                "Pac-Man",
+                "Alternar"
+              ],
+              "content": [
+                "id_display_animation",
+                0,
+                23
+              ]
+            },
+            {
+              "label": "Animación: tiempo por píxel (1 = 10 ms; 0 = detenida)",
+              "type": "range",
+              "options": [
+                0,
+                255
+              ],
+              "content": [
+                "id_display_anim_step",
+                0,
+                20
+              ]
+            },
+            {
+              "label": "Animación: tiempo apagado de cada carril (1 = 100 ms)",
+              "type": "range",
+              "options": [
+                0,
+                255
+              ],
+              "content": [
+                "id_display_anim_pause",
+                0,
+                24
               ]
             }
           ]
