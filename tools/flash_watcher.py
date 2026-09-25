@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Flashea el Sofle desde firmware/pending/, mitad por mitad, con avisos en pantalla (eww).
 
-Uso: tools/flash_watcher.py [--countdown 10] [--once] [--no-popup]
+Uso: tools/flash_watcher.py [--countdown 10] [--once] [--no-popup] [--home-side right]
   --countdown N  segundos de cuenta regresiva antes de poner en modo de carga, por HID, la mitad
                  conectada que tenga firmware pendiente (0 = no automático: doble toque al reset)
   --once         termina cuando no queda nada pendiente (así lo usa el servicio de systemd, que
                  lo arranca una unidad .path cuando aparece un .uf2 en la carpeta)
   --no-popup     sin ventana de eww (solo terminal, notificaciones y log)
+  --home-side    mitad donde va el USB normalmente (por defecto right): al terminar, si el USB quedó
+                 en la otra, la ventana pide devolverlo y espera a verlo ahí
 
 - firmware/pending/sofle_L-<versión>.uf2 va a la mitad izquierda y sofle_R-<versión>.uf2 a la derecha.
 - Cada mitad se reconoce por el punto donde el sistema monta su unidad RPI-RP2
@@ -306,8 +308,9 @@ class Watcher:
             pending = pending_firmware()
             if not pending:
                 if self.had_pending:
-                    self.popup.show("Sofle", "Las dos mitades están al día", level="ok", detail=f"versión {self.last_version}")
                     log("ok", f"Las dos mitades están al día ({self.last_version})", notify=True)
+                    self.wait_home_side()
+                    self.popup.show("Sofle", "Las dos mitades están al día", level="ok", detail=f"versión {self.last_version}")
                     time.sleep(DONE_DISPLAY_SECONDS)
                     self.popup.close()
                     self.had_pending = False
@@ -322,6 +325,21 @@ class Watcher:
                 log("info", f"Firmware pendiente para la mitad {names}")
             self.had_pending = True
             self.step(pending)
+            time.sleep(POLL_SECONDS)
+
+    def wait_home_side(self):
+        """Si el USB quedó en la otra mitad, pide devolverlo y espera a verlo en la de siempre."""
+        home = self.args.home_side
+        info = keyboard_info()
+        if info is not None and info[0] == home:
+            return
+        log("info", f"Esperando que el USB vuelva a la mitad {SIDE_NAMES[home]}")
+        while True:
+            info = keyboard_info() if keyboard_serial() is not None else None
+            if info is not None and info[0] == home:
+                log("ok", f"USB de vuelta en la mitad {SIDE_NAMES[home]}")
+                return
+            self.popup.show("Sofle · listo", f"Devuelve el USB a la mitad {SIDE_NAMES[home]}", level="warn", detail=f"las dos mitades ya tienen la versión {self.last_version}")
             time.sleep(POLL_SECONDS)
 
     def step(self, pending):
@@ -416,6 +434,7 @@ def main():
     parser.add_argument("--countdown", type=int, default=10, help="segundos antes de poner la mitad en modo de carga por HID (0 = doble toque manual)")
     parser.add_argument("--once", action="store_true", help="terminar cuando no quede firmware pendiente")
     parser.add_argument("--no-popup", action="store_true", help="sin ventana de eww")
+    parser.add_argument("--home-side", choices=["left", "right"], default="right", help="mitad donde va el USB normalmente (al terminar pide devolverlo ahí)")
     watcher = Watcher(parser.parse_args())
     try:
         watcher.run()
