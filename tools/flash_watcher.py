@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Flashea el Sofle desde firmware/pending/, mitad por mitad, con avisos en pantalla (eww).
 
-Uso: tools/flash_watcher.py [--countdown 10] [--once] [--no-popup] [--home-side right]
+Uso: tools/flash_watcher.py [--countdown 5] [--once] [--no-popup] [--home-side right]
   --countdown N  segundos de cuenta regresiva antes de poner en modo de carga, por HID, la mitad
                  conectada que tenga firmware pendiente (0 = no automático: doble toque al reset)
   --once         termina cuando no queda nada pendiente (así lo usa el servicio de systemd, que
@@ -70,6 +70,7 @@ DONE_DISPLAY_SECONDS = 5
 MAX_FLASH_ATTEMPTS = 2  # intentos fallidos por mitad antes de sacar su .uf2 de la cola
 USB_SIDE_NAMES = {"izquierda": "left", "derecha": "right"}
 REBOOT_TIMEOUT = 15
+BOOTLOADER_APPEAR_TIMEOUT = 15  # tras el comando de modo de carga, lo que puede tardar en aparecer RPI-RP2
 ENUMERATE_TIMEOUT = 20
 
 COLORS = {"info": "\033[36m", "ok": "\033[32m", "warn": "\033[33m", "error": "\033[31m", "wait": "\033[90m"}
@@ -317,6 +318,8 @@ class Watcher:
         self.last_version = None
         self.had_pending = False
         self.failures = {}
+        self.booting_side = None
+        self.booting_until = 0.0
 
     def run(self):
         PENDING_DIR.mkdir(parents=True, exist_ok=True)
@@ -368,10 +371,17 @@ class Watcher:
             self.handled_device = None
         elif found[0] != self.handled_device:
             self.countdown_until = None
+            self.booting_side = None
             self.handle_bootloader(found, pending)
             return
         else:
             return  # unidad ya atendida: espera a que desaparezca
+
+        # Recién mandado a modo de carga: ni teclado ni unidad por unos segundos, y no es que falte nada
+        if self.booting_side is not None and time.monotonic() < self.booting_until:
+            self.popup.show("Sofle", f"Entrando en modo de carga (mitad {SIDE_NAMES[self.booting_side]})…", detail=f"versión {self.last_version}")
+            return
+        self.booting_side = None
 
         if keyboard_serial() is None:
             names = " o ".join(SIDE_NAMES[side] for side in pending)
@@ -420,6 +430,8 @@ class Watcher:
             refresh_backup(usb_side)
             self.popup.show("Sofle", f"Entrando en modo de carga (mitad {SIDE_NAMES[usb_side]})…", detail=f"versión {self.last_version}")
             if enter_bootloader():
+                self.booting_side = usb_side
+                self.booting_until = time.monotonic() + BOOTLOADER_APPEAR_TIMEOUT
                 log("info", f"Mitad {SIDE_NAMES[usb_side]} puesta en modo de carga por HID")
             else:
                 log("warn", f"La mitad {SIDE_NAMES[usb_side]} no entró en modo de carga por HID: doble toque al reset", notify=True)
@@ -458,7 +470,7 @@ class Watcher:
 
 def main():
     parser = argparse.ArgumentParser(description="Flashea el Sofle desde firmware/pending/ con avisos en pantalla")
-    parser.add_argument("--countdown", type=int, default=10, help="segundos antes de poner la mitad en modo de carga por HID (0 = doble toque manual)")
+    parser.add_argument("--countdown", type=int, default=5, help="segundos antes de poner la mitad en modo de carga por HID (0 = doble toque manual)")
     parser.add_argument("--once", action="store_true", help="terminar cuando no quede firmware pendiente")
     parser.add_argument("--no-popup", action="store_true", help="sin ventana de eww")
     parser.add_argument("--home-side", choices=["left", "right"], default="right", help="mitad donde va el USB normalmente (al terminar pide devolverlo ahí)")

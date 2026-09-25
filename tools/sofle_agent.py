@@ -52,8 +52,16 @@ def sync_time():
             log("El teclado no aceptó la hora")
 
 
+PENDING_DIR = Path(__file__).resolve().parent.parent / "firmware" / "pending"
+
+
 def check_halves():
-    """Avisa si las dos mitades corren firmware distinto (hay que flashear las dos)."""
+    """Avisa si las dos mitades corren firmware distinto (hay que flashear las dos).
+
+    Mientras haya firmware en la cola se está flasheando mitad por mitad: la diferencia es esperada.
+    """
+    if any(PENDING_DIR.glob("sofle_*.uf2")):
+        return
     with sofle_hid.Keyboard() as kb:
         other = kb.request(sofle_hid.CMD_OTHER_HALF)
         own = kb.firmware_version()

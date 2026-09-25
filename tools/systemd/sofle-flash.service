@@ -8,4 +8,4 @@ Description=Flasheo del teclado Sofle
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /websites/personal/qmk/tools/flash_watcher.py --once --countdown 10
+ExecStart=/usr/bin/python3 /websites/personal/qmk/tools/flash_watcher.py --once --countdown 5
