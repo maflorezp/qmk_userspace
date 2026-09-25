@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
-# Compila el firmware del Sofle en Docker (imagen oficial de QMK) y deja los .uf2 en firmware/.
-# Uso: ./build.sh            -> firmware genérico (sofle.uf2), sirve para las dos mitades
+# Compila el firmware del Sofle en Docker (imagen oficial de QMK) y deja los .uf2 en firmware/,
+# con la versión en el nombre (por ejemplo firmware/sofle-c47b795+ab12-normal.uf2).
+# Uso: ./build.sh            -> firmware genérico, sirve para las dos mitades
 #      ./build.sh hands      -> además, un .uf2 por mitad que graba el lado en la EEPROM
 #                               (solo hace falta la primera vez o después de borrar la EEPROM)
 #      ./build.sh pinscan    -> además, firmware de diagnóstico de pines para la mitad derecha
 #      ./build.sh i2cscan    -> además, firmware de diagnóstico que busca la OLED en el bus I2C
 #      ./build.sh oledtest   -> además, firmware de diagnóstico con todos los píxeles de las OLED encendidos
 #
-# El firmware normal queda además en firmware/pending/ (sofle_L.uf2 y sofle_R.uf2) para que
-# tools/flash_watcher.py lo cargue en cada mitad. Con "hands" se encolan las versiones con lado.
+# El firmware normal queda además en firmware/pending/ (sofle_L-<versión>.uf2 y sofle_R-<versión>.uf2)
+# para que tools/flash_watcher.py lo cargue en cada mitad. Con "hands" se encolan las versiones con lado.
 set -euo pipefail
 
 USERSPACE_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -17,9 +18,22 @@ IMAGE="ghcr.io/qmk/qmk_cli"
 KEYBOARD="sofle/rev1"
 KEYMAP="maflorezp"
 OUTPUT_DIR="$USERSPACE_DIR/firmware"
+PENDING_DIR="$OUTPUT_DIR/pending"
 
-mkdir -p "$OUTPUT_DIR"
+mkdir -p "$OUTPUT_DIR" "$PENDING_DIR"
 
+# Versión embebida en un .uf2 (la misma que reporta el teclado por USB)
+uf2_version() {
+    python3 - "$USERSPACE_DIR/tools" "$1" <<'PY'
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import flash_watcher
+print(flash_watcher.uf2_version(Path(sys.argv[2])) or "sinversion")
+PY
+}
+
+# Compila y deja el .uf2 como firmware/<nombre>-<versión>.uf2; su ruta queda en BUILT_FILE
 compile() {
     local name="$1" hand="$2"
     shift 2
@@ -34,36 +48,43 @@ compile() {
         -e SKIP_GIT=1 \
         "$IMAGE" qmk compile -c -kb "$KEYBOARD" -km "$KEYMAP" ${hand:+-e HAND="$hand"} "$@" |
         grep -E "error|warning|Creating UF2" || true
-    mv -f "$USERSPACE_DIR/sofle_rev1_${KEYMAP}${suffix}.uf2" "$OUTPUT_DIR/$name.uf2"
+    local built="$USERSPACE_DIR/sofle_rev1_${KEYMAP}${suffix}.uf2"
+    if [[ ! -f "$built" ]]; then
+        echo "ERROR: $name no compiló; revisa los errores de arriba. No se encoló nada." >&2
+        exit 1
+    fi
+    BUILT_FILE="$OUTPUT_DIR/$name-$(uf2_version "$built").uf2"
+    mv -f "$built" "$BUILT_FILE"
+}
+
+# Deja un firmware en la cola de una mitad (L o R), reemplazando el que hubiera
+queue() {
+    local side="$1" file="$2" version
+    version="$(basename "$file" .uf2)"
+    version="${version#*-}"
+    rm -f "$PENDING_DIR/sofle_${side}"*.uf2
+    cp "$file" "$PENDING_DIR/sofle_${side}-${version}.uf2"
 }
 
 compile sofle ""
+generic="$BUILT_FILE"
 
 if [[ "${1:-}" == "hands" ]]; then
     compile sofle_left left
+    queue L "$BUILT_FILE"
     compile sofle_right right
-fi
-
-if [[ "${1:-}" == "pinscan" ]]; then
-    compile sofle_right_pinscan right -e PIN_SCAN=yes
-fi
-
-if [[ "${1:-}" == "i2cscan" ]]; then
-    compile sofle_i2cscan "" -e I2C_SCAN=yes
-fi
-
-if [[ "${1:-}" == "oledtest" ]]; then
-    compile sofle_oledtest "" -e OLED_TEST=yes
-fi
-
-# Encola el firmware para tools/flash_watcher.py
-mkdir -p "$OUTPUT_DIR/pending"
-if [[ "${1:-}" == "hands" ]]; then
-    cp "$OUTPUT_DIR/sofle_left.uf2" "$OUTPUT_DIR/pending/sofle_L.uf2"
-    cp "$OUTPUT_DIR/sofle_right.uf2" "$OUTPUT_DIR/pending/sofle_R.uf2"
+    queue R "$BUILT_FILE"
 else
-    cp "$OUTPUT_DIR/sofle.uf2" "$OUTPUT_DIR/pending/sofle_L.uf2"
-    cp "$OUTPUT_DIR/sofle.uf2" "$OUTPUT_DIR/pending/sofle_R.uf2"
+    queue L "$generic"
+    queue R "$generic"
 fi
 
-ls -la "$OUTPUT_DIR" "$OUTPUT_DIR/pending"
+case "${1:-}" in
+    pinscan) compile sofle_right_pinscan right -e PIN_SCAN=yes ;;
+    i2cscan) compile sofle_i2cscan "" -e I2C_SCAN=yes ;;
+    oledtest) compile sofle_oledtest "" -e OLED_TEST=yes ;;
+esac
+
+echo
+echo "Compilado: $(basename "$generic")"
+echo "En cola:   $(ls "$PENDING_DIR" | tr '\n' ' ')"
