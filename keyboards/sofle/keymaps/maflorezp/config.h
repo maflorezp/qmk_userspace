@@ -42,13 +42,13 @@
 // --- Teclado partido ---
 // Cada mitad sabe de qué lado es por lo grabado en su EEPROM (se graba al flashear con flash.sh).
 #define EE_HANDS
-// Arreglo del bloqueo al encender: la mitad principal se decide por la presencia de 5 V en VBUS
-// (GP24 del Pico, con su divisor) y no esperando a que el PC enumere el USB, que al arrancar puede
-// tardar más que el tiempo de espera. La otra mitad recibe los 5 V por VSYS a través del cable
-// (su pin VBUS no está soldado), así que su GP24 queda en bajo. Si aun así las dos mitades quedaran
-// como esclavas, el watchdog las reinicia.
+// Arreglo del bloqueo al encender: la mitad principal se decide primero por la presencia de 5 V
+// en VBUS (GP24 del Pico) y, si GP24 no los ve, esperando a que el PC enumere (split_master.c).
+// La otra mitad recibe los 5 V por VSYS a través del cable, así que su GP24 queda en bajo. Si aun
+// así las dos mitades quedaran como esclavas, el watchdog las reinicia (más largo que la espera).
 #define USB_VBUS_PIN GP24
 #define SPLIT_WATCHDOG_ENABLE
+#define SPLIT_WATCHDOG_TIMEOUT 6000
 // La mitad esclava necesita saber la capa y el estado de los LEDs para su OLED
 #define SPLIT_LAYER_STATE_ENABLE
 #define SPLIT_LED_STATE_ENABLE

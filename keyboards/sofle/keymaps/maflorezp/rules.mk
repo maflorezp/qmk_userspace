@@ -49,7 +49,7 @@ ifeq ($(strip $(OLED_TEST)), yes)
     OPT_DEFS += -DOLED_TEST_ENABLE
 endif
 
-SRC += settings.c rgb.c hid_protocol.c version.c clock.c
+SRC += settings.c rgb.c hid_protocol.c version.c clock.c split_master.c
 
 # Versión del firmware: commit del userspace y tipo de build. Con cambios sin commitear se agrega
 # "+" y una huella del código del keymap, para que cada build distinto tenga una versión distinta.
