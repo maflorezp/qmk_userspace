@@ -3,12 +3,15 @@
 
 Uso: tools/flash_watcher.py        (dejarlo abierto en una terminal; Ctrl+C para salir)
 
-- firmware/pending/sofle_L.uf2 va a la mitad izquierda y sofle_R.uf2 a la derecha.
+- firmware/pending/sofle_L-<versión>.uf2 va a la mitad izquierda y sofle_R-<versión>.uf2 a la derecha.
 - Cada mitad se reconoce por el punto donde el sistema monta su unidad RPI-RP2
   (PicoL / PicoR; se cambia con LEFT_MOUNT_PATTERN / RIGHT_MOUNT_PATTERN).
 - Tras copiar, espera a que la mitad arranque y compara el número de serie USB (lleva la
   versión del firmware) con la versión que trae el .uf2. Solo si coinciden lo da por bueno
   y mueve el archivo a firmware/flashed/.
+- Mientras hay firmware pendiente y el teclado funciona, guarda un respaldo de lo que tiene
+  (capas, macros, luces y configuración) en /tmp; tras flashear y verificar esa mitad, lo
+  restaura y lo borra.
 - Mensajes en pantalla, notificaciones de escritorio (dunst) y log en /tmp/sofle-flash.log.
 """
 import datetime
@@ -22,12 +25,15 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sofle_hid  # noqa: E402
+
 REPO_DIR = Path(__file__).resolve().parent.parent
 PENDING_DIR = REPO_DIR / "firmware" / "pending"
 FLASHED_DIR = REPO_DIR / "firmware" / "flashed"
 LOG_FILE = Path("/tmp/sofle-flash.log")
 
-PENDING_FILES = {"left": "sofle_L.uf2", "right": "sofle_R.uf2"}
+PENDING_PREFIXES = {"left": "sofle_L", "right": "sofle_R"}
 SIDE_NAMES = {"left": "izquierda", "right": "derecha", None: "desconocida"}
 MOUNT_PATTERNS = {
     "left": os.environ.get("LEFT_MOUNT_PATTERN", "PicoL"),
@@ -37,6 +43,9 @@ MOUNT_PATTERNS = {
 KEYBOARD_VID, KEYBOARD_PID = "fc32", "0287"
 SERIAL_PREFIX = "maflorezp-"
 POLL_SECONDS = 1
+BACKUP_REFRESH_SECONDS = 30
+SETTLE_SECONDS = 3  # espera tras el reinicio, a que el teclado termine de arrancar
+USB_SIDE_NAMES = {"izquierda": "left", "derecha": "right"}
 REBOOT_TIMEOUT = 15
 ENUMERATE_TIMEOUT = 20
 
@@ -70,7 +79,13 @@ def uf2_version(path):
 
 
 def pending_firmware():
-    return {side: PENDING_DIR / name for side, name in PENDING_FILES.items() if (PENDING_DIR / name).exists()}
+    """El .uf2 pendiente de cada mitad; si hubiera varios, el más reciente."""
+    pending = {}
+    for side, prefix in PENDING_PREFIXES.items():
+        files = sorted(PENDING_DIR.glob(f"{prefix}*.uf2"), key=lambda f: f.stat().st_mtime)
+        if files:
+            pending[side] = files[-1]
+    return pending
 
 
 def bootloader_device():
@@ -130,6 +145,43 @@ def wait_for(condition, timeout):
     return None
 
 
+def backup_path(side):
+    return Path(f"/tmp/sofle-flash-backup-{side}.json")
+
+
+def refresh_backup():
+    """Respaldo de la mitad conectada por USB, antes de que entre en modo de carga."""
+    try:
+        with sofle_hid.Keyboard() as kb:
+            side = USB_SIDE_NAMES.get(kb.usb_side())
+            backup = sofle_hid.take_backup(kb)
+    except (sofle_hid.KeyboardError, OSError):
+        return
+    if side is None:
+        return
+    target = backup_path(side)
+    is_new = not target.exists()
+    target.write_text(json.dumps(backup, indent=1))
+    if is_new:
+        log("info", f"Respaldo previo al flasheo de la mitad {SIDE_NAMES[side]} guardado en {target}")
+
+
+def restore_after_flash(side):
+    """Restaura en la mitad recién flasheada el respaldo tomado antes, y lo borra."""
+    source = backup_path(side)
+    if not source.exists():
+        return
+    time.sleep(SETTLE_SECONDS)
+    try:
+        with sofle_hid.Keyboard() as kb:
+            restored = sofle_hid.restore_backup(kb, json.loads(source.read_text()), log=lambda message: log("warn", message))
+    except (sofle_hid.KeyboardError, OSError) as error:
+        log("error", f"No se pudo restaurar el respaldo de la mitad {SIDE_NAMES[side]}: {error}. Queda en {source}", notify=True)
+        return
+    source.unlink()
+    log("ok", f"Mitad {SIDE_NAMES[side]}: restaurado {restored}", notify=True)
+
+
 def flash(side, firmware, device, mount_point):
     expected = uf2_version(firmware)
     log("info", f"Mitad {SIDE_NAMES[side]}: copiando {firmware.name} (versión {expected or 'sin versión'})", notify=True)
@@ -153,6 +205,7 @@ def flash(side, firmware, device, mount_point):
     stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     shutil.move(firmware, FLASHED_DIR / f"{stamp}_{firmware.name}")
     log("ok", f"Mitad {SIDE_NAMES[side]} verificada: corre {running or expected}", notify=True)
+    restore_after_flash(side)
     return True
 
 
@@ -161,6 +214,7 @@ def main():
     log("info", f"Vigilando {PENDING_DIR} (log en {LOG_FILE})")
     last_pending = None
     handled_device = None
+    next_backup = 0.0
 
     while True:
         pending = pending_firmware()
@@ -173,6 +227,11 @@ def main():
             else:
                 log("wait", "Nada pendiente; esperando firmware en la carpeta.")
             last_pending = set(pending)
+
+        # Con firmware pendiente y el teclado funcionando, mantiene fresco el respaldo previo
+        if pending and keyboard_serial() is not None and time.monotonic() >= next_backup:
+            refresh_backup()
+            next_backup = time.monotonic() + BACKUP_REFRESH_SECONDS
 
         found = bootloader_device()
         if found is None:

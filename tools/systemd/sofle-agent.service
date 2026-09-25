@@ -1,0 +1,17 @@
+# Servicio de usuario del agente del Sofle: envía la hora al teclado y saca respaldos periódicos.
+# Parámetros: --time-minutes (hora cada N minutos) y --backup-hours (respaldo cada N horas).
+# REFERENCIA: la unidad instalada vive en ~/.dotFiles/systemd/user/sofle-agent.service (enlazada a
+# ~/.config/systemd/user/ y listada en ~/.dotFiles/systemd/enabled.list). No copiar esta encima:
+# se cambia la de ~/.dotFiles y se aplica con `dotfiles-state install user-units`.
+# Logs: journalctl --user -u sofle-agent -f
+[Unit]
+Description=Agente del teclado Sofle (hora y respaldos)
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /websites/personal/qmk/tools/sofle_agent.py --time-minutes 15 --backup-hours 6 --backup-dir %h/Documents/QMK/backups
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
