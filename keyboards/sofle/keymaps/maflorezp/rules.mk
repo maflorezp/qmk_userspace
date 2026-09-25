@@ -22,7 +22,16 @@ ENCODER_ENABLE = yes
 ENCODER_MAP_ENABLE = yes
 
 OLED_ENABLE = yes
+# Velocidad de tipeo para la pantalla
+WPM_ENABLE = yes
 RGBLIGHT_ENABLE = yes
+# Driver propio que envuelve al ws2812 de QMK con verificación de índice (ver rgb_driver.c).
+# Se puede volver al de QMK con -e RGBLIGHT_DRIVER=ws2812 cuando QMK traiga la corrección.
+RGBLIGHT_DRIVER ?= custom
+ifeq ($(strip $(RGBLIGHT_DRIVER)), custom)
+    WS2812_DRIVER_REQUIRED = yes
+    SRC += rgb_driver.c
+endif
 
 # Firmware de diagnóstico para encontrar el bus I2C de la OLED: compilar con -e I2C_SCAN=yes.
 # Apaga el driver de la OLED para que no ocupe los pines mientras se prueban por software.
@@ -40,7 +49,7 @@ ifeq ($(strip $(OLED_TEST)), yes)
     OPT_DEFS += -DOLED_TEST_ENABLE
 endif
 
-SRC += rgb.c hid_protocol.c version.c
+SRC += settings.c rgb.c hid_protocol.c version.c clock.c
 
 # Versión del firmware: commit del userspace y tipo de build. Con cambios sin commitear se agrega
 # "+" y una huella del código del keymap, para que cada build distinto tenga una versión distinta.

@@ -108,12 +108,15 @@ bool dynamic_macro_record_end_user(int8_t direction) {
 }
 
 void keyboard_post_init_user(void) {
-    layer_colors_init();
+    rgb_init();
+    settings_init();
     version_init();
 }
 
 void housekeeping_task_user(void) {
-    layer_colors_task();
+    settings_task();
+    rgb_task();
+    hid_protocol_task();
     version_task();
 #ifdef PIN_SCAN_ENABLE
     pin_scan_task();

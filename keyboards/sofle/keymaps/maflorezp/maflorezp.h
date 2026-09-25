@@ -21,6 +21,21 @@ extern bool is_recording_macro;
 
 // Texto recibido por Raw HID para mostrarlo en la OLED (vacío si no hay mensaje vigente)
 const char *raw_hid_message(void);
+void        hid_protocol_task(void);
+
+// --- Reloj (clock.c) ---
+typedef struct {
+    uint16_t year;
+    uint8_t  month;
+    uint8_t  day;
+    uint8_t  hour;
+    uint8_t  minute;
+    uint8_t  second;
+} clock_time_t;
+
+bool         clock_is_set(void);
+void         clock_set(const clock_time_t *time);
+clock_time_t clock_now(void);
 
 // --- Versión del firmware (version.c) ---
 #define VERSION_STRING_SIZE 24
@@ -37,7 +52,7 @@ version_status_t version_status(void);
 void             version_init(void);
 void             version_task(void);
 
-// --- Colores de la tira por capa (rgb.c) ---
+// --- Configuración editable desde VIA (settings.c) ---
 // El orden define la prioridad de las capas de luz (el último gana) y los ids del menú de VIA
 typedef enum {
     LAYER_COLOR_MANUAL,
@@ -57,14 +72,48 @@ typedef struct {
     uint8_t sat;
 } layer_color_t;
 
-const layer_color_t *layer_colors_get(layer_color_item_t item);
-void                 layer_colors_set(layer_color_item_t item, const layer_color_t *color);
-void                 layer_colors_save(void);
-void                 layer_colors_toggle_manual(void);
-uint8_t              brightness_limit_get_percent(void);
-void                 brightness_limit_set_percent(uint8_t percent);
-void                 layer_colors_init(void);
-void                 layer_colors_task(void);
+#define RGB_LIMIT_MIN_PERCENT 10
+#define DISPLAY_MAX_BLINKS 5
+
+typedef enum {
+    ANIMATION_NONE,
+    ANIMATION_SNAKE,
+    ANIMATION_PACMAN,
+    ANIMATION_ALTERNATE, // una vuelta completa de cada una
+    ANIMATION_COUNT,
+} display_animation_t;
+
+typedef struct {
+    uint8_t timeout_seconds;    // se apaga tras este tiempo sin teclear; 0 = nunca
+    uint8_t brightness_percent; // brillo de la pantalla
+    uint8_t animation;          // animación contra el quemado (display_animation_t)
+    uint8_t anim_step_10ms;     // tiempo por píxel avanzado (x 10 ms); 0 = detenida
+    uint8_t anim_pause_tenths;  // cada carril terminado queda apagado este tiempo y luego reaparece (x 100 ms)
+    uint8_t blinks_per_second;  // parpadeo de los ":" de la hora y de REC; 0 = sin parpadeo
+} display_settings_t;
+
+typedef struct {
+    layer_color_t      colors[LAYER_COLOR_COUNT];
+    uint8_t            rgb_limit_percent; // techo de brillo de la tira
+    uint8_t            rgb_timeout_seconds; // la tira se apaga tras este tiempo sin teclear; 0 = nunca
+    display_settings_t display;
+} user_settings_t;
+
+const user_settings_t *settings(void);
+void                   settings_update(const user_settings_t *updated);
+void                   settings_save(void);
+void                   settings_init(void);
+void                   settings_task(void);
+uint8_t                settings_schema(void);
+
+// --- Tira LED (rgb.c) y pantalla (oled.c): aplican la configuración ---
+void rgb_init(void);
+void rgb_apply_settings(void);
+void rgb_task(void);
+void layer_colors_toggle_manual(void);
+void display_apply_settings(void);
+// Muestra un texto corto por unos segundos (por ejemplo el valor que se ajusta en VIA)
+void display_show_overlay(const char *text);
 
 #ifdef PIN_SCAN_ENABLE
 void        pin_scan_task(void);

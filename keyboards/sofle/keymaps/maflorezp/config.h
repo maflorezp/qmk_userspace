@@ -28,7 +28,9 @@
 #    define OLED_TIMEOUT 0
 #    define OLED_BRIGHTNESS 255
 #else
-#    define OLED_TIMEOUT 30000
+// El apagado de QMK cuenta el tiempo sin cambios en la pantalla, no sin teclear: con los ":"
+// parpadeando nunca se apagaría. El apagado lo maneja oled.c según la configuración de VIA.
+#    define OLED_TIMEOUT 0
 #endif
 
 // --- Identificación USB ---
@@ -55,6 +57,10 @@
 #undef RGBLED_SPLIT
 #define RGBLED_SPLIT { 4, 4 }
 #define RGBLIGHT_LED_MAP { 3, 2, 1, 0, 4, 5, 6, 7 }
+// Con el driver propio de la tira (rgb_driver.c) ws2812.h ya no define el tamaño del buffer
+#ifdef RGBLIGHT_CUSTOM
+#    define WS2812_LED_COUNT RGBLIGHT_LED_COUNT
+#endif
 #define RGBLIGHT_LAYERS
 #define RGBLIGHT_MAX_LAYERS 8
 // Las capas de luz usan el brillo elegido en VIA (Lighting) en vez de uno fijo
@@ -66,12 +72,18 @@
 extern uint8_t rgblight_limit_val;
 #endif
 #define RGBLIGHT_LIMIT_VAL rgblight_limit_val
-// Tabla en la EEPROM: 1 byte de control + 8 elementos x (activo, tono, saturación) + brillo máximo
-#define EECONFIG_USER_DATA_SIZE 26
-// Mensaje entre mitades para que la izquierda reciba los colores que se editan en VIA
-#define SPLIT_TRANSACTION_IDS_USER RPC_ID_USER_LAYER_COLORS, RPC_ID_USER_VERSION
+// Configuración en la EEPROM (settings.c): 1 byte de control + 8 colores x (activo, tono, saturación)
+// + techo de brillo y apagado de la tira + 6 ajustes de la pantalla
+#define EECONFIG_USER_DATA_SIZE 33
+// La configuración ya no cabe en los 32 bytes por defecto de un mensaje entre mitades
+#define RPC_M2S_BUFFER_SIZE 48
+// Mensajes entre mitades: la configuración editada en VIA y la versión del firmware
+#define SPLIT_TRANSACTION_IDS_USER RPC_ID_USER_SETTINGS, RPC_ID_USER_VERSION
 // Sin esto la mitad sin USB no se entera de que se teclea: su OLED se apagaba a los 30 s y no volvía
 #define SPLIT_ACTIVITY_ENABLE
+// La otra mitad también muestra los modificadores presionados en su pantalla
+#define SPLIT_MODS_ENABLE
+#define SPLIT_WPM_ENABLE
 #define RGBLIGHT_HUE_STEP 4
 #define RGBLIGHT_SAT_STEP 4
 #define RGBLIGHT_EFFECT_BREATHING
