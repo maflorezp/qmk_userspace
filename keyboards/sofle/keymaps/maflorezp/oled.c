@@ -43,30 +43,49 @@ static bool blink_visible(void) {
     return blinks == 0 || (timer_read32() / (500 / blinks)) % 2 == 0;
 }
 
+// Filas fijas del bloque de estado. Cada dato se escribe en su fila con oled_set_cursor: con
+// oled_write_ln, un texto de 5 caracteres (el ancho de la pantalla) salta solo de línea y el salto de
+// oled_write_ln agrega otra línea en blanco, lo que desplazaba hacia abajo todo lo que venía después.
+enum status_row {
+    ROW_DATE   = 0,
+    ROW_TIME   = 1,
+    ROW_LAYER  = 3,
+    ROW_LOCKS  = 4,
+    ROW_MODS   = 5,
+    ROW_WPM    = 7,
+    ROW_REC    = 8,
+    ROW_USB    = 9,
+};
+
+// Escribe el texto en su fila, completado con espacios hasta el ancho para borrar lo que hubiera
+static void write_row(uint8_t row, const char *text, bool invert) {
+    char padded[6];
+    snprintf(padded, sizeof(padded), "%-5s", text);
+    oled_set_cursor(0, row);
+    oled_write(padded, invert);
+}
+
 static void render_status(void) {
     char line[8];
-
-    oled_set_cursor(0, 0);
 
     if (clock_is_set()) {
         clock_time_t now = clock_now();
         snprintf(line, sizeof(line), "%02u/%02u", now.day, now.month);
-        oled_write_ln(line, false);
+        write_row(ROW_DATE, line, false);
         snprintf(line, sizeof(line), "%02u%c%02u", now.hour, blink_visible() ? ':' : ' ', now.minute);
-        oled_write_ln(line, false);
+        write_row(ROW_TIME, line, false);
     } else {
-        oled_write_ln_P(PSTR("--/--"), false);
-        oled_write_ln_P(PSTR("--:--"), false);
+        write_row(ROW_DATE, "--/--", false);
+        write_row(ROW_TIME, "--:--", false);
     }
-    oled_write_ln_P(PSTR(""), false);
 
-    oled_write_ln(layer_name(), false);
+    write_row(ROW_LAYER, layer_name(), false);
 
-    // Posiciones fijas: cada indicador aparece solo mientras está activo
-    // Posiciones fijas, sin separador para no dejar píxeles encendidos todo el tiempo
+    // Posiciones fijas, sin separador para no dejar píxeles encendidos todo el tiempo: cada indicador
+    // aparece solo mientras está activo
     led_t leds = host_keyboard_led_state();
     snprintf(line, sizeof(line), "%s %s", (leds.caps_lock || is_caps_word_on()) ? "CA" : "  ", leds.num_lock ? "NU" : "  ");
-    oled_write_ln(line, false);
+    write_row(ROW_LOCKS, line, false);
 
     uint8_t mods = get_mods() | get_oneshot_mods();
     line[0]      = (mods & MOD_MASK_GUI) ? 'W' : ' ';
@@ -75,26 +94,24 @@ static void render_status(void) {
     line[3]      = (mods & MOD_MASK_ALT) ? 'A' : ' ';
     line[4]      = (mods & MOD_MASK_SHIFT) ? 'S' : ' ';
     line[5]      = '\0';
-    oled_write_ln(line, false);
-    oled_write_ln_P(PSTR(""), false);
+    write_row(ROW_MODS, line, false);
 
-    // Velocidad de tipeo; en reposo (0) la línea queda apagada
+    // Velocidad de tipeo; en reposo (0) la fila queda apagada
     uint8_t wpm = get_current_wpm();
     if (wpm > 0) {
         snprintf(line, sizeof(line), "W:%3u", wpm);
-        oled_write_ln(line, false);
     } else {
-        oled_write_ln_P(PSTR(""), false);
+        line[0] = '\0';
     }
+    write_row(ROW_WPM, line, false);
 
-    oled_write_ln((is_recording_macro && blink_visible()) ? "REC" : "", false);
-    oled_write_ln(is_keyboard_master() ? "USB" : "", false);
+    write_row(ROW_REC, (is_recording_macro && blink_visible()) ? "REC" : "", false);
+    write_row(ROW_USB, is_keyboard_master() ? "USB" : "", false);
 
-    // Versión en la última línea; invertida si la otra mitad no coincide o no responde
+    // Versión en la última fila; invertida si la otra mitad no coincide o no responde
     snprintf(line, 6, "%s", firmware_version());
     bool warn = is_keyboard_master() && version_status() != VERSION_MATCH;
-    oled_set_cursor(0, oled_max_lines() - 1);
-    oled_write(line, warn);
+    write_row(oled_max_lines() - 1, line, warn);
 }
 
 // Animaciones contra el quemado: recorren la pantalla en zigzag por carriles (izquierda a
