@@ -20,9 +20,11 @@ IMAGE="ghcr.io/qmk/qmk_cli"
 KEYBOARD="sofle/rev1"
 KEYMAP="maflorezp"
 OUTPUT_DIR="$USERSPACE_DIR/firmware"
+# Archivos intermedios de la compilación en /tmp (tmpfs, en RAM): no desgasta el disco y es más rápido
+BUILD_TMP_DIR="${BUILD_TMP_DIR:-/tmp/qmk-build}"
 PENDING_DIR="$OUTPUT_DIR/pending"
 
-mkdir -p "$OUTPUT_DIR" "$PENDING_DIR"
+mkdir -p "$OUTPUT_DIR" "$PENDING_DIR" "$BUILD_TMP_DIR"
 
 # Versión embebida en un .uf2 (la misma que reporta el teclado por USB)
 uf2_version() {
@@ -46,7 +48,9 @@ compile() {
         -w /qmk_firmware \
         -v "$QMK_FIRMWARE_DIR":/qmk_firmware:z \
         -v "$USERSPACE_DIR":/qmk_userspace:z \
+        -v "$BUILD_TMP_DIR":/qmk_build:z \
         -e QMK_USERSPACE=/qmk_userspace \
+        -e BUILD_DIR=/qmk_build \
         -e SKIP_GIT=1 \
         "$IMAGE" qmk compile -c -kb "$KEYBOARD" -km "$KEYMAP" ${hand:+-e HAND="$hand"} "$@" |
         grep -E "error|warning|Creating UF2" || true
