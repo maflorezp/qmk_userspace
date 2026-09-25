@@ -10,22 +10,27 @@
 
 bool is_recording_macro = false;
 
+tap_dance_action_t tap_dance_actions[] = {
+    [TD_MODS_LEFT]  = ACTION_DUAL_MODS(MODS_CTRL_SHIFT, MODS_CTRL_ALT),
+    [TD_MODS_RIGHT] = ACTION_DUAL_MODS(MODS_CTRL_ALT, MODS_CTRL_SHIFT),
+};
+
 // clang-format off
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
 [_QWERTY] = LAYOUT(
       KC_ESC,        KC_1,        KC_2,        KC_3,        KC_4,        KC_5,                                  KC_6,        KC_7,        KC_8,        KC_9,        KC_0,  OSM(M_CAS),
       KC_TAB,        KC_Q,        KC_W,        KC_E,        KC_R,        KC_T,                                  KC_Y,        KC_U,        KC_I,        KC_O,        KC_P,     KC_BSPC,
-   OSM(M_CS),        KC_A,        KC_S,        KC_D,        KC_F,        KC_G,                                  KC_H,        KC_J,        KC_K,        KC_L,     KC_SCLN,   OSM(M_CA),
+TD(TD_MODS_LEFT),     KC_A,        KC_S,        KC_D,        KC_F,        KC_G,                                  KC_H,        KC_J,        KC_K,        KC_L,     KC_SCLN, TD(TD_MODS_RIGHT),
      KC_LSFT,        KC_Z,        KC_X,        KC_C,        KC_V,        KC_B,     KC_MPLY,     KC_MUTE,        KC_N,        KC_M,     KC_COMM,      KC_DOT,     KC_SLSH,     KC_RSFT,
                   KC_LCTL,     KC_LGUI,     KC_LALT,     TL_LOWR,      KC_ENT,                                KC_SPC,     TL_UPPR,     KC_RALT,      KC_APP,     KC_RCTL
 ),
 
 [_LOWER] = LAYOUT(
-     _______,      KC_GRV, RALT(KC_QUOT),   KC_UNDS,     KC_TILD,     XXXXXXX,                               XXXXXXX,      KC_INS,     KC_HOME,     KC_PGUP,     KC_PSCR, TO(_QWERTY),
+     _______,      KC_GRV, RALT(KC_QUOT),   KC_UNDS,     KC_TILD, LCA(KC_PSCR),                              XXXXXXX,      KC_INS,     KC_HOME,     KC_PGUP,     KC_PSCR, TO(_QWERTY),
      _______,     KC_DQUO,     KC_QUOT,     KC_LPRN,     KC_RPRN,      KC_EQL,                            C(KC_PSCR),      KC_DEL,      KC_END,     KC_PGDN,     KC_CALC,     _______,
      _______,     KC_LABK,     KC_RABK,     KC_LBRC,     KC_RBRC,     KC_MINS,                            A(KC_PSCR),     KC_LEFT,       KC_UP,     KC_RGHT,    KC_COLON,     _______,
-     _______,     KC_PIPE,     KC_PLUS,     KC_LCBR,     KC_RCBR,     KC_BSLS,     _______,     _______,  S(KC_PSCR),     KC_LEFT,     KC_DOWN,     KC_RGHT, KC_QUESTION,     _______,
+     _______,     KC_PIPE,     KC_PLUS,     KC_LCBR,     KC_RCBR,     KC_BSLS,     _______,      CK_MIC,  S(KC_PSCR),     KC_LEFT,     KC_DOWN,     KC_RGHT, KC_QUESTION,     _______,
                   _______,     _______,     _______,     _______,      KC_SPC,                                KC_ENT,     _______,     _______,     _______,     _______
 ),
 
@@ -63,11 +68,12 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 };
 
 #if defined(ENCODER_MAP_ENABLE)
-// Índice 0 = encoder izquierdo (no instalado), índice 1 = encoder derecho
+// Índice 0 = encoder izquierdo (no instalado), índice 1 = encoder derecho:
+// base = volumen, LOWER = rueda del mouse, RAISE = Re Pág / Av Pág
 const uint16_t PROGMEM encoder_map[][NUM_ENCODERS][NUM_DIRECTIONS] = {
-    [_QWERTY]  = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU),  ENCODER_CCW_CW(KC_PGUP, KC_PGDN)       },
-    [_LOWER]   = { ENCODER_CCW_CW(KC_UP, KC_DOWN),    ENCODER_CCW_CW(C(KC_MINS), C(KC_EQL))  },
-    [_RAISE]   = { ENCODER_CCW_CW(KC_MPRV, KC_MNXT),  ENCODER_CCW_CW(KC_LEFT, KC_RGHT)       },
+    [_QWERTY]  = { ENCODER_CCW_CW(KC_VOLD, KC_VOLU),  ENCODER_CCW_CW(KC_VOLD, KC_VOLU)       },
+    [_LOWER]   = { ENCODER_CCW_CW(KC_UP, KC_DOWN),    ENCODER_CCW_CW(MS_WHLU, MS_WHLD)       },
+    [_RAISE]   = { ENCODER_CCW_CW(KC_MPRV, KC_MNXT),  ENCODER_CCW_CW(KC_PGUP, KC_PGDN)       },
     [_NUMERIC] = { ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(_______, _______)       },
     [_ADJUST]  = { ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(UG_VALD, UG_VALU)       },
     [_RGB]     = { ENCODER_CCW_CW(_______, _______),  ENCODER_CCW_CW(UG_HUED, UG_HUEU)       },
@@ -84,6 +90,16 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         case CK_RGB1:
             if (record->event.pressed) {
                 layer_colors_toggle_manual();
+            }
+            return false;
+        case CK_MIC:
+            // Win + Ctrl + clic central: el atajo de sxhkd que silencia el micrófono
+            if (record->event.pressed) {
+                register_mods(MOD_BIT(KC_LGUI) | MOD_BIT(KC_LCTL));
+                register_code(MS_BTN3);
+            } else {
+                unregister_code(MS_BTN3);
+                unregister_mods(MOD_BIT(KC_LGUI) | MOD_BIT(KC_LCTL));
             }
             return false;
         case CK_HAND:

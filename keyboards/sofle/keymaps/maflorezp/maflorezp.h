@@ -15,7 +15,30 @@ enum layers {
 enum custom_keycodes {
     CK_RGB1 = QK_KB_0,
     CK_HAND,
+    CK_MIC, // silencia el micrófono: Win + Ctrl + clic central (atajo de sxhkd)
 };
+
+// Tap dances (lógica en tap_dance.c, arreglo tap_dance_actions en keymap.c)
+enum tap_dances {
+    TD_MODS_LEFT,  // Ctrl+Shift; con doble toque y mantener, Ctrl+Alt
+    TD_MODS_RIGHT, // Ctrl+Alt; con doble toque y mantener, Ctrl+Shift
+};
+
+#define MODS_CTRL_SHIFT (MOD_BIT(KC_LCTL) | MOD_BIT(KC_LSFT))
+#define MODS_CTRL_ALT (MOD_BIT(KC_LCTL) | MOD_BIT(KC_LALT))
+#define MODS_CTRL_ALT_SHIFT (MODS_CTRL_SHIFT | MOD_BIT(KC_LALT))
+
+typedef struct {
+    uint8_t mods;         // los de la tecla
+    uint8_t inverse_mods; // los de la otra tecla, con doble toque y mantener
+    uint8_t held_mods;    // los que quedaron presionados y hay que soltar al terminar
+} dual_mods_t;
+
+void dual_mods_finished(tap_dance_state_t *state, void *user_data);
+void dual_mods_reset(tap_dance_state_t *state, void *user_data);
+
+#define ACTION_DUAL_MODS(mods, inverse_mods) \
+    { .fn = {NULL, dual_mods_finished, dual_mods_reset, NULL}, .user_data = (void *)&((dual_mods_t){mods, inverse_mods, 0}) }
 
 extern bool is_recording_macro;
 
