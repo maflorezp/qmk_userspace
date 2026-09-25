@@ -18,6 +18,9 @@ Uso: tools/flash_watcher.py [--countdown 10] [--once] [--no-popup] [--home-side 
   la del .uf2 y, si coinciden, restaura el respaldo y mueve el .uf2 a firmware/flashed/.
 - La ventana de eww (tools/eww) queda visible hasta que las dos mitades están al día. Sus botones
   escriben en /tmp/sofle-flash-control: "now" (flashear ya) o "postpone" (posponer 5 minutos).
+- Si una mitad falla MAX_FLASH_ATTEMPTS veces, o el watcher se cae, los .uf2 pasan a
+  firmware/failed/: así ni el modo de carga automático ni la unidad .path de systemd reintentan
+  sin fin.
 - Log en /tmp/sofle-flash.log.
 """
 import argparse
@@ -39,6 +42,7 @@ import sofle_hid  # noqa: E402
 REPO_DIR = Path(__file__).resolve().parent.parent
 PENDING_DIR = REPO_DIR / "firmware" / "pending"
 FLASHED_DIR = REPO_DIR / "firmware" / "flashed"
+FAILED_DIR = REPO_DIR / "firmware" / "failed"
 EWW_CONFIG = REPO_DIR / "tools" / "eww"
 EWW_WINDOW = "sofle-flash"
 LOG_FILE = Path("/tmp/sofle-flash.log")
@@ -59,6 +63,7 @@ BACKUP_REFRESH_SECONDS = 30
 POSTPONE_SECONDS = 300
 SETTLE_SECONDS = 3  # espera tras el reinicio, a que el teclado termine de arrancar
 DONE_DISPLAY_SECONDS = 5
+MAX_FLASH_ATTEMPTS = 2  # intentos fallidos por mitad antes de sacar su .uf2 de la cola
 USB_SIDE_NAMES = {"izquierda": "left", "derecha": "right"}
 REBOOT_TIMEOUT = 15
 ENUMERATE_TIMEOUT = 20
@@ -289,6 +294,14 @@ def flash(side, firmware, device, mount_point, popup):
     return True
 
 
+def move_to_failed(firmware):
+    """Saca un .uf2 de la cola para que no se vuelva a intentar solo."""
+    FAILED_DIR.mkdir(parents=True, exist_ok=True)
+    target = FAILED_DIR / f"{datetime.datetime.now():%Y%m%d-%H%M%S}_{firmware.name}"
+    shutil.move(firmware, target)
+    return target
+
+
 class Watcher:
     def __init__(self, args):
         self.args = args
@@ -299,6 +312,7 @@ class Watcher:
         self.next_backup = 0.0
         self.last_version = None
         self.had_pending = False
+        self.failures = {}
 
     def run(self):
         PENDING_DIR.mkdir(parents=True, exist_ok=True)
@@ -425,8 +439,16 @@ class Watcher:
             log("warn", f"Entró la mitad {SIDE_NAMES[side]} pero no tiene firmware pendiente; no toco nada", notify=True)
             self.popup.show("Sofle", f"La mitad {SIDE_NAMES[side]} no tiene firmware pendiente", level="warn", detail=f"desconéctala y pasa el USB a la {other[0]}" if other else "")
             subprocess.run(["udisksctl", "unmount", "-b", device], capture_output=True, check=False)
+        elif flash(side, pending[side], device, mount_point, self.popup):
+            self.failures.pop(side, None)
         else:
-            flash(side, pending[side], device, mount_point, self.popup)
+            self.failures[side] = self.failures.get(side, 0) + 1
+            if self.failures[side] >= MAX_FLASH_ATTEMPTS:
+                target = move_to_failed(pending[side])
+                log("error", f"La mitad {SIDE_NAMES[side]} falló {MAX_FLASH_ATTEMPTS} veces: su firmware pasó a {target}", notify=True)
+                self.popup.show("Sofle · error", f"No se pudo flashear la mitad {SIDE_NAMES[side]}", level="error", detail=f"el firmware quedó en {target}; revisa /tmp/sofle-flash.log")
+                time.sleep(DONE_DISPLAY_SECONDS)
+                self.failures.pop(side)
 
 
 def main():
@@ -438,6 +460,12 @@ def main():
     watcher = Watcher(parser.parse_args())
     try:
         watcher.run()
+    except Exception as error:
+        # Sin esto, la unidad .path relanzaría el servicio en bucle mientras el .uf2 siga en la cola
+        for firmware in pending_firmware().values():
+            move_to_failed(firmware)
+        log("error", f"El watcher se detuvo por un error ({error}); la cola pasó a {FAILED_DIR}", notify=True)
+        raise
     finally:
         watcher.popup.close()
 
