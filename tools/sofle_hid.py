@@ -237,17 +237,27 @@ def backup_content(backup):
     return {key: value for key, value in backup.items() if key not in ("created", "firmware")}
 
 
-def restore_backup(kb, backup, log=print):
-    """Restaura un respaldo; la configuración propia solo si la estructura del firmware coincide."""
+VIA_KEYMAP_RESET = 0x06
+
+
+def restore_backup(kb, backup, log=print, keymap_from_firmware=False):
+    """Restaura un respaldo; la configuración propia solo si la estructura del firmware coincide.
+
+    Con keymap_from_firmware, las capas y los encoders vuelven a los de keymap.c (se usa cuando
+    el keymap cambió en el código) y del respaldo se restaura todo lo demás.
+    """
     if backup.get("format") != 1:
         raise KeyboardError("Formato de respaldo desconocido")
     layers = kb.request(VIA_GET_LAYER_COUNT)[1]
     if layers != backup["layers"]:
         raise KeyboardError(f"El teclado tiene {layers} capas y el respaldo {backup['layers']}: no se restaura")
 
-    kb._write_buffer(VIA_KEYMAP_SET_BUFFER, bytes.fromhex(backup["keymap"]))
-    for layer, encoder, clockwise, keycode in backup["encoders"]:
-        kb.request(VIA_SET_ENCODER, layer, encoder, clockwise, keycode >> 8, keycode & 0xFF)
+    if keymap_from_firmware:
+        kb.request(VIA_KEYMAP_RESET)
+    else:
+        kb._write_buffer(VIA_KEYMAP_SET_BUFFER, bytes.fromhex(backup["keymap"]))
+        for layer, encoder, clockwise, keycode in backup["encoders"]:
+            kb.request(VIA_SET_ENCODER, layer, encoder, clockwise, keycode >> 8, keycode & 0xFF)
 
     kb.request(VIA_MACRO_RESET)
     macros = bytes.fromhex(backup["macros"]["data"])
@@ -258,7 +268,7 @@ def restore_backup(kb, backup, log=print):
         value = backup["rgblight"][name]
         kb.request(VIA_CUSTOM_SET, VIA_RGBLIGHT_CHANNEL, value_id, *(value if isinstance(value, list) else [value]))
     kb.request(VIA_CUSTOM_SAVE, VIA_RGBLIGHT_CHANNEL, 0)
-    restored = "capas, encoders, macros y tira (Lighting)"
+    restored = ("capas y encoders de keymap.c, " if keymap_from_firmware else "capas, encoders, ") + "macros y tira (Lighting)"
 
     schema = kb.schema()
     if backup["schema"] is not None and backup["schema"] == schema:

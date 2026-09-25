@@ -7,6 +7,8 @@
 #      ./build.sh pinscan    -> además, firmware de diagnóstico de pines para la mitad derecha
 #      ./build.sh i2cscan    -> además, firmware de diagnóstico que busca la OLED en el bus I2C
 #      ./build.sh oledtest   -> además, firmware de diagnóstico con todos los píxeles de las OLED encendidos
+#      ./build.sh keymap     -> tras flashear, las capas vuelven a las de keymap.c (usar cuando cambian
+#                               teclas en el código: si no, el watcher restaura las del respaldo)
 #
 # El firmware normal queda además en firmware/pending/ (sofle_L-<versión>.uf2 y sofle_R-<versión>.uf2)
 # para que tools/flash_watcher.py lo cargue en cada mitad. Con "hands" se encolan las versiones con lado.
@@ -68,6 +70,13 @@ queue() {
 
 compile sofle ""
 generic="$BUILT_FILE"
+
+rm -f "$PENDING_DIR/keymap-reset"
+for arg in "$@"; do
+    if [[ "$arg" == "keymap" ]]; then
+        touch "$PENDING_DIR/keymap-reset"
+    fi
+done
 
 if [[ "${1:-}" == "hands" ]]; then
     compile sofle_left left

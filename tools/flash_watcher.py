@@ -18,6 +18,8 @@ Uso: tools/flash_watcher.py [--countdown 10] [--once] [--no-popup] [--home-side 
   la del .uf2 y, si coinciden, restaura el respaldo y mueve el .uf2 a firmware/flashed/.
 - La ventana de eww (tools/eww) queda visible hasta que las dos mitades están al día. Sus botones
   escriben en /tmp/sofle-flash-control: "now" (flashear ya) o "postpone" (posponer 5 minutos).
+- Si la cola trae la marca keymap-reset (build.sh keymap), las capas y los encoders vuelven a los de
+  keymap.c en lugar de los del respaldo; lo demás (macros, luces, configuración) sí se restaura.
 - Si una mitad falla MAX_FLASH_ATTEMPTS veces, o el watcher se cae, los .uf2 pasan a
   firmware/failed/: así ni el modo de carga automático ni la unidad .path de systemd reintentan
   sin fin.
@@ -47,6 +49,8 @@ EWW_CONFIG = REPO_DIR / "tools" / "eww"
 EWW_WINDOW = "sofle-flash"
 LOG_FILE = Path("/tmp/sofle-flash.log")
 CONTROL_FILE = Path("/tmp/sofle-flash-control")
+# Marca que deja `build.sh keymap`: tras flashear, las capas vuelven a las de keymap.c
+KEYMAP_RESET_FLAG = PENDING_DIR / "keymap-reset"
 
 PENDING_PREFIXES = {"left": "sofle_L", "right": "sofle_R"}
 SIDE_NAMES = {"left": "izquierda", "right": "derecha", None: "desconocida"}
@@ -256,7 +260,7 @@ def restore_after_flash(side):
     time.sleep(SETTLE_SECONDS)
     try:
         with sofle_hid.Keyboard() as kb:
-            restored = sofle_hid.restore_backup(kb, json.loads(source.read_text()), log=lambda message: log("warn", message))
+            restored = sofle_hid.restore_backup(kb, json.loads(source.read_text()), log=lambda message: log("warn", message), keymap_from_firmware=KEYMAP_RESET_FLAG.exists())
     except (sofle_hid.KeyboardError, OSError) as error:
         log("error", f"No se pudo restaurar el respaldo de la mitad {SIDE_NAMES[side]}: {error}. Queda en {source}", notify=True)
         return
@@ -328,6 +332,7 @@ class Watcher:
                     time.sleep(DONE_DISPLAY_SECONDS)
                     self.popup.close()
                     self.had_pending = False
+                    KEYMAP_RESET_FLAG.unlink(missing_ok=True)
                 if self.args.once:
                     log("info", "Nada pendiente: termino")
                     return
