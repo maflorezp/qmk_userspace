@@ -1,0 +1,11 @@
+# Vigila (inotify del kernel) la cola de firmware del Sofle y arranca sofle-flash.service
+# cuando aparece un .uf2 pendiente. REFERENCIA: la unidad instalada vive en ~/.dotFiles/systemd/user/.
+[Unit]
+Description=Cola de firmware del teclado Sofle
+
+[Path]
+PathExistsGlob=/websites/personal/qmk/firmware/pending/sofle_*.uf2
+Unit=sofle-flash.service
+
+[Install]
+WantedBy=default.target

@@ -15,6 +15,7 @@ Ejemplos:
   sofle_hid.py backup                 # respaldo completo en ~/Documents/QMK/sofle-backup-<fecha>.json
   sofle_hid.py backup /ruta/archivo.json
   sofle_hid.py restore /ruta/archivo.json
+  sofle_hid.py boot                   # pone en modo de carga la mitad conectada por USB
 
 Varios programas pueden usar el teclado a la vez (esta herramienta, el watcher y el agente):
 un candado en /tmp/sofle-hid.lock hace que se turnen.
@@ -51,6 +52,7 @@ CMD_OTHER_HALF = 0x83
 CMD_USB_SIDE = 0x84
 CMD_SET_TIME = 0x85
 CMD_SCHEMA = 0x86
+CMD_BOOTLOADER = 0x87
 CMD_OLED_TEXT = 0x90
 
 # Protocolo de VIA (quantum/via.h)
@@ -296,6 +298,7 @@ def main():
     limit.add_argument("percent", type=int, nargs="?")
     backup = sub.add_parser("backup", help="guarda un respaldo completo de lo que hay en el teclado")
     backup.add_argument("path", nargs="?", help="archivo de destino (por defecto en ~/Documents/QMK/)")
+    sub.add_parser("boot", help="pone en modo de carga la mitad conectada por USB")
     restore = sub.add_parser("restore", help="restaura un respaldo en el teclado")
     restore.add_argument("path")
     args = parser.parse_args()
@@ -348,6 +351,9 @@ def run(kb, args):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(take_backup(kb), indent=1))
         print(f"Respaldo guardado en {path}")
+    elif args.command == "boot":
+        r = kb.request(CMD_BOOTLOADER, ord("B"), ord("L"))
+        print("Entrando en modo de carga" if r[0] == CMD_BOOTLOADER and r[1] == 1 else "Este firmware no admite el modo de carga por HID")
     elif args.command == "restore":
         restored = restore_backup(kb, json.loads(Path(args.path).read_text()))
         print(f"Restaurado: {restored}")

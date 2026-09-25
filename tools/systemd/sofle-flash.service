@@ -1,0 +1,11 @@
+# Flashea el Sofle desde firmware/pending/ con avisos en eww al centro de la pantalla.
+# Lo arranca sofle-flash.path; termina solo cuando no queda firmware pendiente (--once).
+# Parámetro: --countdown (segundos antes de poner la mitad en modo de carga por HID; 0 = doble toque manual).
+# REFERENCIA: la unidad instalada vive en ~/.dotFiles/systemd/user/ y se aplica con
+# `dotfiles-state install user-units`. Logs: journalctl --user -u sofle-flash -f
+[Unit]
+Description=Flasheo del teclado Sofle
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /websites/personal/qmk/tools/flash_watcher.py --once --countdown 10

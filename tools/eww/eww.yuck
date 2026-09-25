@@ -1,0 +1,25 @@
+; Ventana del flasheo del Sofle (configuración propia, independiente de ~/.config/eww).
+; La maneja tools/flash_watcher.py con: eww -c tools/eww update/open/close
+; Los botones escriben en /tmp/sofle-flash-control lo que el watcher debe hacer.
+
+(defvar sofle_title "Sofle")
+(defvar sofle_message "")
+(defvar sofle_countdown "")
+(defvar sofle_detail "")
+(defvar sofle_buttons false)
+(defvar sofle_level "info")
+
+(defwindow sofle-flash
+  :monitor 0
+  :geometry (geometry :x "0%" :y "0%" :width "560px" :height "240px" :anchor "center")
+  :stacking "fg"
+  :windowtype "dialog"
+  :wm-ignore true
+  (box :class "sofle ${sofle_level}" :orientation "v" :space-evenly false :spacing 14 :valign "center"
+    (label :class "title" :text sofle_title)
+    (label :class "message" :text sofle_message :wrap true :justify "center")
+    (label :class "countdown" :visible {sofle_countdown != ""} :text sofle_countdown)
+    (label :class "detail" :visible {sofle_detail != ""} :text sofle_detail :wrap true :justify "center")
+    (box :visible sofle_buttons :orientation "h" :spacing 16 :halign "center" :space-evenly false
+      (button :class "now" :onclick "echo now > /tmp/sofle-flash-control" "Ahora")
+      (button :class "later" :onclick "echo postpone > /tmp/sofle-flash-control" "Posponer 5 min"))))

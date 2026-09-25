@@ -5,6 +5,7 @@
   reinicia (por ejemplo después de flashear), porque el teclado no tiene reloj con batería.
 - Cada --backup-hours horas saca un respaldo completo a /tmp y lo compara con el último
   guardado en --backup-dir: si no cambió nada no escribe; si cambió, lo guarda con fecha y hora.
+- Al conectarse el teclado, avisa (notify-send) si las dos mitades tienen firmware distinto.
 
 Uso: sofle_agent.py [--time-minutes 15] [--backup-hours 6] [--backup-dir ~/Documents/QMK/backups]
 Los mensajes salen por la salida estándar (en systemd quedan en journalctl --user -u sofle-agent).
@@ -13,6 +14,7 @@ import argparse
 import datetime
 import json
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -48,6 +50,18 @@ def sync_time():
             log(f"Hora enviada: {now:%d/%m/%Y %H:%M:%S}")
         else:
             log("El teclado no aceptó la hora")
+
+
+def check_halves():
+    """Avisa si las dos mitades corren firmware distinto (hay que flashear las dos)."""
+    with sofle_hid.Keyboard() as kb:
+        other = kb.request(sofle_hid.CMD_OTHER_HALF)
+        own = kb.firmware_version()
+    if other[0] == sofle_hid.CMD_OTHER_HALF and other[1] == 2:
+        other_version = other[2:].split(b"\0")[0].decode()
+        message = f"Las mitades tienen firmware distinto: USB {own}, otra {other_version}. Flashea las dos."
+        log(message)
+        subprocess.run(["notify-send", "-a", "Sofle", "-u", "critical", "Sofle", message], check=False)
 
 
 def latest_backup(backup_dir):
@@ -95,6 +109,10 @@ def main():
                 log("Teclado conectado")
                 time.sleep(SETTLE_SECONDS)
                 next_time_sync = 0.0  # recién conectado o reiniciado: la hora se envía ya
+                try:
+                    check_halves()
+                except (sofle_hid.KeyboardError, OSError) as error:
+                    log(f"No se pudo comparar las mitades: {error}")
 
         if connection is not None:
             now = time.monotonic()
