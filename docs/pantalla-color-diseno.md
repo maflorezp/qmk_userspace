@@ -78,6 +78,36 @@ quemado (culebrita y Pac-Man) y sus ajustes, porque este panel no se quema.
   vacía o transparente: `—`. Código sin nombre: su valor en hexadecimal.
 - El encoder también informa: giro y clic muestran lo que hacen en cada capa.
 
+## Pantalla izquierda (segunda etapa)
+
+Segundo módulo igual en la mitad izquierda, con el mismo cableado. Esa mitad no habla con el PC:
+todo lo que muestre le llega de la derecha por el enlace entre mitades (RPC de usuario).
+
+- **Contenido:** hora grande y fecha fijas arriba, mensajes del PC y, debajo, la lluvia de símbolos.
+- **Reparto:** con las dos pantallas, la derecha queda solo con el estado del teclado.
+- **Datos nuevos por el enlace:** hora, mensaje, y cada tecla oprimida (posición en la matriz).
+
+### Lluvia de símbolos
+
+Cada tecla oprimida suelta un símbolo que cae desde arriba con una estela que se desvanece, como en
+Matrix. No bloquea el teclado ni necesita un modo aparte.
+
+- Caen **símbolos, nunca la letra real**: quien mire la pantalla no puede leer lo que se escribe.
+- Cada tecla tiene asignado su propio grupo de símbolos y al oprimirla cae uno del grupo al azar.
+- Las teclas que más se usan tienen grupos más grandes (las vocales y el espacio, 4 o 5 símbolos;
+  las raras, 1), así la lluvia es variada justo donde más se escribe y un símbolo repetido no
+  delata a la letra más frecuente. El reparto parte de la frecuencia de letras en español.
+- La asignación se baraja en cada arranque del teclado.
+- La columna de caída sale de la posición de la tecla (izquierda del teclado, izquierda de la pantalla).
+- La cabeza de la gota va en blanco; la estela, en el color de la capa activa (verde en QWERTY).
+- Al dejar de escribir la lluvia se acaba sola y queda la hora limpia.
+- Extras a definir al verla: racha mientras no se deja de escribir y récord de velocidad del día.
+
+### Culebrita (opcional, al final)
+
+Animada sola en reposo y jugable con una tecla propia en ADJUST; mientras se juega, las teclas no
+llegan al PC. Solo si después de la lluvia siguen las ganas.
+
 ## Componentes
 
 - `lcd.c`: inicio del panel (Quantum Painter, `st7789_spi`), luz de fondo y apagado por inactividad.
@@ -110,4 +140,5 @@ quemado (culebrita y Pac-Man) y sus ajustes, porque este panel no se quema.
 
 ## Orden de trabajo
 
-1. Prueba de encendido. 2. Pantalla normal. 3. Modo ayuda.
+1. Prueba de encendido. 2. Pantalla normal. 3. Modo ayuda. 4. Pantalla izquierda con hora y
+mensajes. 5. Lluvia de símbolos. 6. Culebrita (opcional).
