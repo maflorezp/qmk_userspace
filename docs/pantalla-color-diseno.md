@@ -103,10 +103,32 @@ Matrix. No bloquea el teclado ni necesita un modo aparte.
 - Al dejar de escribir la lluvia se acaba sola y queda la hora limpia.
 - Extras a definir al verla: racha mientras no se deja de escribir y récord de velocidad del día.
 
-### Culebrita (opcional, al final)
+## Juegos (última etapa)
 
-Animada sola en reposo y jugable con una tecla propia en ADJUST; mientras se juega, las teclas no
-llegan al PC. Solo si después de la lluvia siguen las ganas.
+Versiones propias de la mecánica, no emulación de los originales.
+
+- **Modo juego:** tecla propia `CK_GAME` en ADJUST. Abre un menú; la rueda elige y su clic entra.
+  Mientras dura, ninguna tecla llega al PC. `Esc` vuelve al menú y, desde el menú, sale.
+- La simulación corre en la mitad derecha; si el juego usa la pantalla izquierda, la derecha le
+  envía el estado por el enlace entre mitades.
+- Récord por juego guardado en la memoria del Pico.
+
+| Orden | Juego | Pantallas | Control |
+|---|---|---|---|
+| 1 | Carritos (esquivar por carriles, estilo Brick Game) | una | rueda |
+| 2 | Tetris (tablero 10 x 20, cuadros de 16 px) | una | flechas |
+| 3 | Breakout | una | rueda como raqueta |
+| 4 | Culebrita | una | flechas |
+| 5 | Pong | **las dos**: cada pantalla es media cancha y la bola cruza de una a otra | una mano por raqueta; sirve para dos personas o una sola |
+| 6 | Práctica de escritura | una o las dos | todo el teclado |
+
+Carritos, Tetris y Breakout comparten el dibujo de cuadros. Pong y la práctica de escritura
+dependen de la pantalla izquierda (etapa 4).
+
+**Práctica de escritura:** caen letras y hay que oprimir cada una antes de que toque el fondo; al
+acertar, desaparece. Sube de velocidad con los aciertos y lleva precisión y letras por minuto.
+Niveles: fila central, todas las letras, números y símbolos (que exigen cambiar de capa, así
+también se practican las capas). Lo que cae se toma del keymap real, incluido lo cambiado en VIA.
 
 ## Componentes
 
@@ -141,4 +163,4 @@ llegan al PC. Solo si después de la lluvia siguen las ganas.
 ## Orden de trabajo
 
 1. Prueba de encendido. 2. Pantalla normal. 3. Modo ayuda. 4. Pantalla izquierda con hora y
-mensajes. 5. Lluvia de símbolos. 6. Culebrita (opcional).
+mensajes. 5. Lluvia de símbolos. 6. Juegos, en el orden de su tabla.
