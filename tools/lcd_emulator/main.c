@@ -2,13 +2,14 @@
 // Corre el mismo código de keyboards/sofle/keymaps/maflorezp/games que irá al teclado: aquí solo
 // se implementa game_host.h sobre una ventana de SDL2.
 //
-// Controles: flechas izquierda/derecha o rueda del mouse = girar la rueda del teclado
+// Controles: flechas o rueda del mouse = flechas y rueda del teclado
 //            espacio, Enter o clic del mouse = clic de la rueda
-//            R = reiniciar el juego, Esc o Q = salir
+//            Esc = volver al menú (en el menú, salir); Q = salir
 //
 // Modo sin ventana, para pruebas automáticas (el tiempo es simulado):
-//   lcd_emulator --script "action,wait:500,left,wait:1000,shot:/tmp/captura.ppm"
-//   Pasos: left, right, up, down, action, wait:<ms>, shot:<archivo.ppm>
+//   lcd_emulator --game tetris --script "action,wait:500,left,wait:1000,shot:/tmp/captura.ppm"
+//   Pasos: left, right, up, down, action, back, wait:<ms>, shot:<archivo.ppm>
+//   --game car|tetris entra directo al juego; sin eso se abre el menú
 
 #include <SDL2/SDL.h>
 #include <stdio.h>
@@ -16,8 +17,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "game_car.h"
 #include "game_host.h"
+#include "game_system.h"
 
 #define DEFAULT_SCALE 2
 #define FRAME_DELAY_MS 5
@@ -25,7 +26,7 @@
 #define DEFAULT_SEED 12345
 
 static uint32_t framebuffer[GAME_SCREEN_WIDTH * GAME_SCREEN_HEIGHT];
-static uint16_t records[GAME_ID_COUNT];
+static uint32_t records[GAME_ID_COUNT];
 // Píxeles y rectángulos pintados: estiman cuánto viajaría por SPI en el teclado
 static uint32_t painted_pixels;
 static uint32_t painted_rects;
@@ -72,11 +73,11 @@ void game_host_fill_rect(int16_t x, int16_t y, int16_t width, int16_t height, ga
     painted_rects++;
 }
 
-uint16_t game_host_record_load(game_id_t game) {
+uint32_t game_host_record_load(game_id_t game) {
     return records[game];
 }
 
-void game_host_record_save(game_id_t game, uint16_t record) {
+void game_host_record_save(game_id_t game, uint32_t record) {
     records[game] = record;
 }
 
@@ -99,7 +100,7 @@ static bool parse_input(const char *name, game_input_t *input) {
         const char  *name;
         game_input_t input;
     } inputs[] = {
-        {"left", GAME_INPUT_LEFT}, {"right", GAME_INPUT_RIGHT}, {"up", GAME_INPUT_UP}, {"down", GAME_INPUT_DOWN}, {"action", GAME_INPUT_ACTION},
+        {"left", GAME_INPUT_LEFT}, {"right", GAME_INPUT_RIGHT}, {"up", GAME_INPUT_UP}, {"down", GAME_INPUT_DOWN}, {"action", GAME_INPUT_ACTION}, {"back", GAME_INPUT_BACK},
     };
     for (size_t i = 0; i < sizeof(inputs) / sizeof(inputs[0]); i++) {
         if (strcmp(name, inputs[i].name) == 0) {
@@ -110,14 +111,22 @@ static bool parse_input(const char *name, game_input_t *input) {
     return false;
 }
 
+// Abre el menú o, si se pidió un juego, entra directo a él
+static void start(uint32_t seed, int game, uint32_t now) {
+    game_system_init(seed, now);
+    if (game >= 0) {
+        game_system_start((game_id_t)game, now);
+    }
+}
+
 // Ejecuta los pasos con tiempo simulado; informa el máximo pintado entre dos avances del reloj
-static int run_script(const char *script, uint32_t seed) {
+static int run_script(const char *script, uint32_t seed, int game) {
     uint32_t now        = 0;
     uint32_t max_pixels = 0;
     uint32_t max_rects  = 0;
     char    *steps      = strdup(script);
 
-    game_car_init(seed, now);
+    start(seed, game, now);
     painted_pixels = painted_rects = 0;
 
     for (char *step = strtok(steps, ","); step != NULL; step = strtok(NULL, ",")) {
@@ -126,7 +135,7 @@ static int run_script(const char *script, uint32_t seed) {
             uint32_t end = now + (uint32_t)atoi(step + 5);
             while (now < end) {
                 now += SCRIPT_TICK_MS;
-                game_car_tick(now);
+                game_system_tick(now);
                 if (painted_pixels > max_pixels) {
                     max_pixels = painted_pixels;
                     max_rects  = painted_rects;
@@ -140,7 +149,7 @@ static int run_script(const char *script, uint32_t seed) {
                 return 1;
             }
         } else if (parse_input(step, &input)) {
-            game_car_input(input, now);
+            game_system_input(input, now);
             // Lo que pinta una entrada (por ejemplo, el tablero completo al empezar) no cuenta
             // como paso del juego
             painted_pixels = painted_rects = 0;
@@ -155,12 +164,12 @@ static int run_script(const char *script, uint32_t seed) {
     return 0;
 }
 
-static int run_window(int scale, uint32_t seed) {
+static int run_window(int scale, uint32_t seed, int game) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
         fprintf(stderr, "No se pudo iniciar SDL: %s\n", SDL_GetError());
         return 1;
     }
-    SDL_Window   *window   = SDL_CreateWindow("Sofle LCD - Carritos", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, GAME_SCREEN_WIDTH * scale, GAME_SCREEN_HEIGHT * scale, 0);
+    SDL_Window   *window   = SDL_CreateWindow("Sofle LCD", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, GAME_SCREEN_WIDTH * scale, GAME_SCREEN_HEIGHT * scale, 0);
     SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (window == NULL || renderer == NULL) {
         fprintf(stderr, "No se pudo abrir la ventana: %s\n", SDL_GetError());
@@ -170,49 +179,64 @@ static int run_window(int scale, uint32_t seed) {
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, GAME_SCREEN_WIDTH, GAME_SCREEN_HEIGHT);
 
-    game_car_init(seed, SDL_GetTicks());
+    start(seed, game, SDL_GetTicks());
 
     bool running = true;
     while (running) {
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
-            uint32_t now = SDL_GetTicks();
+            uint32_t     now       = SDL_GetTicks();
+            bool         has_input = false;
+            game_input_t input     = GAME_INPUT_ACTION;
+
             if (event.type == SDL_QUIT) {
                 running = false;
             } else if (event.type == SDL_MOUSEWHEEL && event.wheel.y != 0) {
-                game_car_input(event.wheel.y > 0 ? GAME_INPUT_RIGHT : GAME_INPUT_LEFT, now);
+                input     = event.wheel.y > 0 ? GAME_INPUT_RIGHT : GAME_INPUT_LEFT;
+                has_input = true;
             } else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                game_car_input(GAME_INPUT_ACTION, now);
-            } else if (event.type == SDL_KEYDOWN && !event.key.repeat) {
+                has_input = true;
+            } else if (event.type == SDL_KEYDOWN) {
+                // Las flechas se repiten al mantenerlas; las demás teclas no
+                bool repeat = event.key.repeat != 0;
+                has_input   = true;
                 switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE:
                     case SDLK_q:
-                        running = false;
-                        break;
-                    case SDLK_r:
-                        game_car_init(seed + now, now);
+                        running   = false;
+                        has_input = false;
                         break;
                     case SDLK_LEFT:
-                        game_car_input(GAME_INPUT_LEFT, now);
+                        input = GAME_INPUT_LEFT;
                         break;
                     case SDLK_RIGHT:
-                        game_car_input(GAME_INPUT_RIGHT, now);
+                        input = GAME_INPUT_RIGHT;
                         break;
                     case SDLK_UP:
-                        game_car_input(GAME_INPUT_UP, now);
+                        input     = GAME_INPUT_UP;
+                        has_input = !repeat;
                         break;
                     case SDLK_DOWN:
-                        game_car_input(GAME_INPUT_DOWN, now);
+                        input = GAME_INPUT_DOWN;
                         break;
                     case SDLK_SPACE:
                     case SDLK_RETURN:
-                        game_car_input(GAME_INPUT_ACTION, now);
+                        has_input = !repeat;
+                        break;
+                    case SDLK_ESCAPE:
+                        input     = GAME_INPUT_BACK;
+                        has_input = !repeat;
+                        break;
+                    default:
+                        has_input = false;
                         break;
                 }
             }
+            if (has_input && !game_system_input(input, now)) {
+                running = false;
+            }
         }
 
-        game_car_tick(SDL_GetTicks());
+        game_system_tick(SDL_GetTicks());
 
         SDL_UpdateTexture(texture, NULL, framebuffer, GAME_SCREEN_WIDTH * sizeof(uint32_t));
         SDL_RenderClear(renderer);
@@ -232,23 +256,31 @@ int main(int argc, char **argv) {
     int         scale  = DEFAULT_SCALE;
     uint32_t    seed   = (uint32_t)time(NULL);
     const char *script = NULL;
+    // -1: abrir el menú
+    int         game   = -1;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--scale") == 0 && i + 1 < argc) {
             scale = atoi(argv[++i]);
         } else if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) {
             seed = (uint32_t)strtoul(argv[++i], NULL, 10);
+        } else if (strcmp(argv[i], "--game") == 0 && i + 1 < argc && strcmp(argv[i + 1], "car") == 0) {
+            game = GAME_ID_CAR;
+            i++;
+        } else if (strcmp(argv[i], "--game") == 0 && i + 1 < argc && strcmp(argv[i + 1], "tetris") == 0) {
+            game = GAME_ID_TETRIS;
+            i++;
         } else if (strcmp(argv[i], "--script") == 0 && i + 1 < argc) {
             script = argv[++i];
             // Sin semilla explícita, las pruebas automáticas deben repetirse igual
             seed = DEFAULT_SEED;
         } else {
-            fprintf(stderr, "Uso: %s [--scale N] [--seed N] [--script pasos]\n", argv[0]);
+            fprintf(stderr, "Uso: %s [--scale N] [--seed N] [--game car|tetris] [--script pasos]\n", argv[0]);
             return 1;
         }
     }
     if (scale < 1) {
         scale = DEFAULT_SCALE;
     }
-    return script != NULL ? run_script(script, seed) : run_window(scale, seed);
+    return script != NULL ? run_script(script, seed, game) : run_window(scale, seed, game);
 }

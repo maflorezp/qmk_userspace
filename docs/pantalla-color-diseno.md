@@ -109,6 +109,7 @@ Versiones propias de la mecánica, no emulación de los originales.
 
 - **Modo juego:** tecla propia `CK_GAME` en ADJUST. Abre un menú; la rueda elige y su clic entra.
   Mientras dura, ninguna tecla llega al PC. `Esc` vuelve al menú y, desde el menú, sale.
+- Se pueden probar en el PC con `tools/lcd_emulator/run.sh`, que corre el mismo código.
 - La simulación corre en la mitad derecha; si el juego usa la pantalla izquierda, la derecha le
   envía el estado por el enlace entre mitades.
 - Récord por juego guardado en la memoria del Pico.
@@ -116,7 +117,7 @@ Versiones propias de la mecánica, no emulación de los originales.
 | Orden | Juego | Pantallas | Control |
 |---|---|---|---|
 | 1 | Carritos (esquivar por carriles, estilo Brick Game) | una | rueda |
-| 2 | Tetris (tablero 10 x 20, cuadros de 16 px) | una | flechas |
+| 2 | Tetris (tablero 10 x 20, cuadros de 14 px) | una | flechas; la rueda mueve y su clic gira |
 | 3 | Breakout | una | rueda como raqueta |
 | 4 | Culebrita | una | flechas |
 | 5 | Pong | **las dos**: cada pantalla es media cancha y la bola cruza de una a otra | una mano por raqueta; sirve para dos personas o una sola |

@@ -25,10 +25,13 @@ typedef enum {
     GAME_INPUT_UP,
     GAME_INPUT_DOWN,
     GAME_INPUT_ACTION,
+    // Volver al menú; lo atiende game_system, no cada juego
+    GAME_INPUT_BACK,
 } game_input_t;
 
 typedef enum {
     GAME_ID_CAR,
+    GAME_ID_TETRIS,
     GAME_ID_COUNT,
 } game_id_t;
 
@@ -36,5 +39,5 @@ typedef enum {
 void game_host_fill_rect(int16_t x, int16_t y, int16_t width, int16_t height, game_color_t color);
 
 // Récord guardado de cada juego
-uint16_t game_host_record_load(game_id_t game);
-void     game_host_record_save(game_id_t game, uint16_t record);
+uint32_t game_host_record_load(game_id_t game);
+void     game_host_record_save(game_id_t game, uint32_t record);

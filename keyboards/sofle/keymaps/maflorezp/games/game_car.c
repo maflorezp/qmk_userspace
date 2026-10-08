@@ -4,6 +4,7 @@
 
 #include "game_blocks.h"
 #include "game_font.h"
+#include "game_ui.h"
 
 // Tablero: un muro a cada lado y tres carriles de tres cuadros en medio
 #define LANE_COUNT 3
@@ -13,11 +14,9 @@
 #define CELL_SIZE 14
 #define FIELD_WIDTH (FIELD_COLS * CELL_SIZE)
 #define FIELD_X ((GAME_SCREEN_WIDTH - FIELD_WIDTH) / 2)
+#define FIELD_HEIGHT (FIELD_ROWS * CELL_SIZE)
 // Franja superior con el puntaje, el récord y el nivel
-#define HUD_HEIGHT (GAME_SCREEN_HEIGHT - FIELD_ROWS * CELL_SIZE)
-#define HUD_TEXT_SCALE 2
-#define HUD_LINE_1_Y 4
-#define HUD_LINE_2_Y 22
+#define HUD_HEIGHT (GAME_SCREEN_HEIGHT - FIELD_HEIGHT)
 
 #define CAR_WIDTH 3
 #define CAR_HEIGHT 4
@@ -45,13 +44,6 @@
 #define CRASH_BLINK_INTERVAL_MS 120
 #define CRASH_BLINK_COUNT 8
 
-#define OVERLAY_WIDTH 146
-#define OVERLAY_HEIGHT 84
-#define OVERLAY_BORDER 2
-#define OVERLAY_TEXT_SCALE 2
-#define OVERLAY_LINE_HEIGHT 22
-#define OVERLAY_PADDING 12
-
 enum palette_index {
     PALETTE_EMPTY = GAME_BLOCKS_EMPTY,
     PALETTE_WALL,
@@ -70,8 +62,7 @@ static const game_color_t palette[] = {
     [PALETTE_ENEMY_FIRST + 3] = {213, 255, 255},
 };
 
-static const game_color_t hud_color     = {0, 0, 200};
-static const game_color_t overlay_color = {43, 255, 255};
+static const game_color_t hud_color = {0, 0, 200};
 
 // Silueta del carro, una fila por elemento; el bit 2 es la columna izquierda
 static const uint8_t car_shape[CAR_HEIGHT] = {0b010, 0b111, 0b010, 0b101};
@@ -121,16 +112,16 @@ static uint16_t step_interval(void) {
 }
 
 static void draw_hud(void) {
-    char text[12];
+    char text[16];
 
     snprintf(text, sizeof(text), "PTS %04u", score);
-    game_font_draw_text(FIELD_X, HUD_LINE_1_Y, text, HUD_TEXT_SCALE, hud_color, GAME_COLOR_BLACK);
+    game_font_draw_text(FIELD_X, GAME_UI_HUD_LINE_1_Y, text, GAME_UI_TEXT_SCALE, hud_color, GAME_COLOR_BLACK);
     snprintf(text, sizeof(text), "REC %04u", record);
-    game_font_draw_text(FIELD_X, HUD_LINE_2_Y, text, HUD_TEXT_SCALE, hud_color, GAME_COLOR_BLACK);
+    game_font_draw_text(FIELD_X, GAME_UI_HUD_LINE_2_Y, text, GAME_UI_TEXT_SCALE, hud_color, GAME_COLOR_BLACK);
 
     snprintf(text, sizeof(text), "N%02u", level());
-    int16_t level_x = FIELD_X + FIELD_WIDTH - game_font_text_width(text, HUD_TEXT_SCALE);
-    game_font_draw_text(level_x, HUD_LINE_1_Y, text, HUD_TEXT_SCALE, palette[PALETTE_PLAYER], GAME_COLOR_BLACK);
+    int16_t level_x = FIELD_X + FIELD_WIDTH - game_font_text_width(text, GAME_UI_TEXT_SCALE);
+    game_font_draw_text(level_x, GAME_UI_HUD_LINE_1_Y, text, GAME_UI_TEXT_SCALE, palette[PALETTE_PLAYER], GAME_COLOR_BLACK);
 }
 
 static void put_car(uint8_t lane, int8_t top_row, uint8_t color) {
@@ -163,22 +154,6 @@ static void render_field(void) {
     }
 
     game_blocks_flush();
-}
-
-// Recuadro con hasta tres líneas centradas sobre el tablero
-static void draw_overlay(const char *line_1, const char *line_2, const char *line_3) {
-    int16_t x = (GAME_SCREEN_WIDTH - OVERLAY_WIDTH) / 2;
-    int16_t y = HUD_HEIGHT + (FIELD_ROWS * CELL_SIZE - OVERLAY_HEIGHT) / 2;
-
-    game_host_fill_rect(x, y, OVERLAY_WIDTH, OVERLAY_HEIGHT, overlay_color);
-    game_host_fill_rect(x + OVERLAY_BORDER, y + OVERLAY_BORDER, OVERLAY_WIDTH - 2 * OVERLAY_BORDER, OVERLAY_HEIGHT - 2 * OVERLAY_BORDER, GAME_COLOR_BLACK);
-
-    const char *lines[] = {line_1, line_2, line_3};
-    for (uint8_t i = 0; i < 3; i++) {
-        int16_t      text_x = (GAME_SCREEN_WIDTH - game_font_text_width(lines[i], OVERLAY_TEXT_SCALE)) / 2;
-        game_color_t color  = i == 0 ? overlay_color : GAME_COLOR_WHITE;
-        game_font_draw_text(text_x, y + OVERLAY_PADDING + i * OVERLAY_LINE_HEIGHT, lines[i], OVERLAY_TEXT_SCALE, color, GAME_COLOR_BLACK);
-    }
 }
 
 static bool player_hits_enemy(void) {
@@ -245,7 +220,7 @@ static void start_game(uint32_t now_ms) {
     draw_hud();
     // El recuadro tapó parte del tablero: se borra (los cuadros no cubren la separación entre
     // ellos) y se redibuja completo
-    game_host_fill_rect(FIELD_X, HUD_HEIGHT, FIELD_WIDTH, FIELD_ROWS * CELL_SIZE, GAME_COLOR_BLACK);
+    game_host_fill_rect(0, HUD_HEIGHT, GAME_SCREEN_WIDTH, FIELD_HEIGHT, GAME_COLOR_BLACK);
     game_blocks_invalidate();
     render_field();
 }
@@ -292,7 +267,7 @@ void game_car_init(uint32_t seed, uint32_t now_ms) {
 
     // xorshift32 se queda en cero si arranca en cero
     rng_state = seed != 0 ? seed : 1;
-    record    = game_host_record_load(GAME_ID_CAR);
+    record    = (uint16_t)game_host_record_load(GAME_ID_CAR);
     score     = 0;
     for (uint8_t i = 0; i < MAX_ENEMIES; i++) {
         enemies[i].active = false;
@@ -307,7 +282,7 @@ void game_car_init(uint32_t seed, uint32_t now_ms) {
     game_blocks_init(&config);
     draw_hud();
     render_field();
-    draw_overlay("CARRITOS", "GIRA: MOVER", "CLIC: JUGAR");
+    game_ui_draw_overlay(HUD_HEIGHT + FIELD_HEIGHT / 2, "CARRITOS", "GIRA: MOVER", "CLIC: JUGAR");
 }
 
 void game_car_input(game_input_t input, uint32_t now_ms) {
@@ -352,9 +327,9 @@ void game_car_tick(uint32_t now_ms) {
     player_visible = !player_visible;
     render_field();
     if (--blinks_left == 0) {
-        char text[12];
+        char text[16];
         snprintf(text, sizeof(text), "PTS %04u", score);
         state = STATE_OVER;
-        draw_overlay("CHOQUE!", text, "CLIC: OTRA");
+        game_ui_draw_overlay(HUD_HEIGHT + FIELD_HEIGHT / 2, "CHOQUE!", text, "CLIC: OTRA");
     }
 }

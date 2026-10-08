@@ -2,8 +2,10 @@
 # Compila y abre el emulador de la pantalla a color con los juegos del teclado.
 # Uso: ./run.sh                -> ventana al doble de tamaño
 #      ./run.sh --scale 3      -> ventana al triple
+#      ./run.sh --game tetris  -> entra directo a un juego (car o tetris)
 #      ./run.sh --script "..." -> prueba sin ventana (ver main.c)
-# Controles: flechas o rueda del mouse = rueda del teclado; espacio o clic = clic; R = reiniciar; Esc = salir
+# Controles: flechas o rueda del mouse = flechas y rueda del teclado; espacio o clic = clic;
+#            Esc = volver al menú (en el menú, salir); Q = salir
 set -euo pipefail
 
 EMULATOR_DIR="$(cd "$(dirname "$0")" && pwd)"
