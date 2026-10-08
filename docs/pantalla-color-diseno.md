@@ -34,8 +34,11 @@ De arriba hacia abajo, en vertical:
 
 1. Hora grande (los ":" parpadean) y fecha. Sin hora del PC: `--:--`.
 2. Capa actual, bloque pequeño con el color de la capa (el mismo de la tira LED) y nombre completo.
-3. Bloqueos (CAPS, NUM) y modificadores (W C A S), visibles solo mientras están activos.
-4. REC parpadeando al grabar una macro; velocidad de escritura, oculta en 0.
+3. Bloqueos (CAPS, NUM) y modificadores, **siempre dibujados**: atenuados (gris) cuando están
+   inactivos y encendidos cuando están activos. Los modificadores son íconos, no letras:
+   Win ⊞ (cuatro cuadros), Ctrl ⌃, Alt ⌥, Shift ⇧.
+4. REC, atenuado en reposo y rojo parpadeando al grabar una macro; velocidad de escritura siempre
+   visible.
 5. Mensaje del PC por HID, hasta 2 líneas.
 6. Versión y USB. La versión en rojo si la otra mitad no coincide o no responde.
 
@@ -59,7 +62,7 @@ quemado (culebrita y Pac-Man) y sus ajustes, porque este panel no se quema.
 │▀▀▀▀▀▀▀▀▀     │  barra que se acorta con el tiempo
 ├──────────────┤
 │▌QWE        5 │
-│▌LOW  Ctl+W+M │  una fila por capa, en orden, con la franja
+│▌LOW      ⌃⊞M │  una fila por capa, en orden, con la franja
 │▌RAI        — │  y el texto del color de la capa
 │▌NUM        — │
 │▌ADJ        — │
@@ -70,7 +73,8 @@ quemado (culebrita y Pac-Man) y sus ajustes, porque este panel no se quema.
 - Nombres de capa en 3 letras: QWE, LOW, RAI, NUM, ADJ, RGB.
 - Lo que hace la tecla se lee del keymap dinámico (lo guardado en la EEPROM, incluidos los cambios
   de VIA), no de una tabla fija.
-- Una tabla convierte cada código en un nombre corto (`Ctl+W+M`, `Vol+`, `F11`, `→ NUM`). Tecla
+- Una tabla convierte cada código en un nombre corto (`Vol+`, `F11`, `→ NUM`). Los modificadores
+  usan los mismos íconos de la pantalla normal: Ctrl+Win+M se muestra como `⌃⊞M`. Tecla
   vacía o transparente: `—`. Código sin nombre: su valor en hexadecimal.
 - El encoder también informa: giro y clic muestran lo que hacen en cada capa.
 
@@ -82,7 +86,8 @@ quemado (culebrita y Pac-Man) y sus ajustes, porque este panel no se quema.
 - `lcd_help.c`: modo ayuda (estado, cuenta regresiva, bloqueo de teclas en `process_record_user`).
 - `keycode_names.c`: código de tecla → nombre corto. Sin dependencia de la pantalla.
 - Fuentes de Quantum Painter generadas con `qmk painter-convert-graphics` / `painter-make-font`:
-  una grande para la hora y una mediana para el resto; el ícono "?" como glifo o imagen.
+  una grande para la hora y una mediana para el resto. Los íconos (ayuda "?", Win, Ctrl, Alt,
+  Shift) van como glifos adicionales de la fuente mediana, para poder mezclarlos con texto.
 - `oled.c` y las animaciones se eliminan; `lcd_test.c` queda como diagnóstico (`./build.sh lcdtest`).
 - Ajustes: se quitan los de animación y se agrega el tiempo de la ayuda. Cambia la estructura, así
   que sube `SETTINGS_MAGIC` (se restablecen los ajustes y el keymap de VIA; el flasheo los restaura
