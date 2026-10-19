@@ -20,6 +20,11 @@ Uso: tools/flash_watcher.py [--countdown 5] [--once] [--no-popup] [--home-side r
   escriben en /tmp/sofle-flash-control: "now" (flashear ya) o "postpone" (posponer 5 minutos).
 - Si la cola trae la marca keymap-reset (build.sh keymap), las capas y los encoders vuelven a los de
   keymap.c en lugar de los del respaldo; lo demás (macros, luces, configuración) sí se restaura.
+- Antes de la cuenta regresiva revisa que el kernel en uso pueda montar la unidad RPI-RP2 (módulo
+  usb-storage). Tras actualizar el kernel sin reiniciar, sus módulos ya no están en disco: la mitad
+  entraba en modo de carga, la unidad nunca aparecía y se reintentaba sin fin. Ahora avisa que hay
+  que reiniciar el PC y conserva la cola.
+- Si la mitad entra en modo de carga y su unidad no aparece, cuenta como un intento fallido.
 - Si una mitad falla MAX_FLASH_ATTEMPTS veces, o el watcher se cae, los .uf2 pasan a
   firmware/failed/: así ni el modo de carga automático ni la unidad .path de systemd reintentan
   sin fin.
@@ -60,6 +65,7 @@ MOUNT_PATTERNS = {
 }
 
 KEYBOARD_VID, KEYBOARD_PID = "fc32", "0287"
+BOOTLOADER_VID, BOOTLOADER_PID = "2e8a", "0003"  # RP2040 en modo de carga ("RP2 Boot")
 SERIAL_PREFIX = "maflorezp-"
 BOOTLOADER_MIN_PROTOCOL = 7  # desde esta versión del protocolo HID el teclado entra en modo de carga por HID
 POLL_SECONDS = 0.5
@@ -193,6 +199,29 @@ def side_of(mount_point):
     return None
 
 
+def mass_storage_problem():
+    """Por qué el PC no podría montar la unidad RPI-RP2, o None si puede."""
+    if Path("/sys/module/usb_storage").exists():
+        return None  # cargado o incluido en el kernel
+    found = subprocess.run(["modinfo", "-n", "usb-storage"], capture_output=True, check=False).returncode == 0
+    if found:
+        return None  # se carga solo al aparecer la unidad
+    release = os.uname().release
+    if not Path(f"/lib/modules/{release}").exists():
+        return f"el kernel en uso ({release}) ya no tiene sus módulos en disco: se actualizó y falta reiniciar el PC"
+    return "el kernel no tiene el módulo usb-storage para montar la unidad RPI-RP2"
+
+
+def usb_device_present(vid, pid):
+    for dev in Path("/sys/bus/usb/devices").iterdir():
+        try:
+            if (dev / "idVendor").read_text().strip() == vid and (dev / "idProduct").read_text().strip() == pid:
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def keyboard_serial():
     """Número de serie USB del Sofle conectado (la versión de la mitad USB), o None."""
     for dev in Path("/sys/bus/usb/devices").iterdir():
@@ -320,6 +349,7 @@ class Watcher:
         self.failures = {}
         self.booting_side = None
         self.booting_until = 0.0
+        self.reported_problem = None
 
     def run(self):
         PENDING_DIR.mkdir(parents=True, exist_ok=True)
@@ -381,7 +411,17 @@ class Watcher:
         if self.booting_side is not None and time.monotonic() < self.booting_until:
             self.popup.show("Sofle", f"Entrando en modo de carga (mitad {SIDE_NAMES[self.booting_side]})…", detail=f"versión {self.last_version}")
             return
-        self.booting_side = None
+        if self.booting_side is not None:
+            # Pasó el tiempo y la unidad no apareció (si hubiera aparecido, handle_bootloader lo habría limpiado)
+            side = self.booting_side
+            self.booting_side = None
+            if usb_device_present(BOOTLOADER_VID, BOOTLOADER_PID):
+                reason = "entró en modo de carga pero el PC no montó su unidad RPI-RP2"
+            else:
+                reason = "no apareció en modo de carga"
+            if side in pending:
+                self.register_failure(side, pending[side], reason)
+            return
 
         if keyboard_serial() is None:
             names = " o ".join(SIDE_NAMES[side] for side in pending)
@@ -416,6 +456,17 @@ class Watcher:
         if not can_boot or self.args.countdown == 0:
             self.popup.show("Sofle · firmware pendiente", f"Doble toque al reset de la mitad {SIDE_NAMES[usb_side]}", detail=f"versión {self.last_version}")
             return
+
+        # Sin poder montar la unidad, entrar en modo de carga solo deja el teclado muerto unos segundos
+        problem = mass_storage_problem()
+        if problem is not None:
+            self.countdown_until = None
+            if problem != self.reported_problem:
+                log("error", f"No se puede flashear: {problem}. El firmware sigue en cola", notify=True)
+                self.reported_problem = problem
+            self.popup.show("Sofle · no se puede flashear", "Reinicia el PC para flashear", level="error", detail=problem)
+            return
+        self.reported_problem = None
 
         if now < self.postponed_until:
             resume = datetime.datetime.now() + datetime.timedelta(seconds=self.postponed_until - now)
@@ -456,16 +507,25 @@ class Watcher:
             log("warn", f"Entró la mitad {SIDE_NAMES[side]} pero no tiene firmware pendiente; no toco nada", notify=True)
             self.popup.show("Sofle", f"La mitad {SIDE_NAMES[side]} no tiene firmware pendiente", level="warn", detail=f"desconéctala y pasa el USB a la {other[0]}" if other else "")
             subprocess.run(["udisksctl", "unmount", "-b", device], capture_output=True, check=False)
+        elif mount_point is None:
+            self.register_failure(side, pending[side], "su unidad RPI-RP2 apareció pero no se pudo montar")
         elif flash(side, pending[side], device, mount_point, self.popup):
             self.failures.pop(side, None)
         else:
-            self.failures[side] = self.failures.get(side, 0) + 1
-            if self.failures[side] >= MAX_FLASH_ATTEMPTS:
-                target = move_to_failed(pending[side])
-                log("error", f"La mitad {SIDE_NAMES[side]} falló {MAX_FLASH_ATTEMPTS} veces: su firmware pasó a {target}", notify=True)
-                self.popup.show("Sofle · error", f"No se pudo flashear la mitad {SIDE_NAMES[side]}", level="error", detail=f"el firmware quedó en {target}; revisa /tmp/sofle-flash.log")
-                time.sleep(DONE_DISPLAY_SECONDS)
-                self.failures.pop(side)
+            self.register_failure(side, pending[side], "el flasheo no se verificó")
+
+    def register_failure(self, side, firmware, reason):
+        """Cuenta un intento fallido; al llegar a MAX_FLASH_ATTEMPTS saca el .uf2 de la cola y avisa."""
+        self.failures[side] = self.failures.get(side, 0) + 1
+        attempts = self.failures[side]
+        log("error", f"Mitad {SIDE_NAMES[side]}: {reason} (intento {attempts} de {MAX_FLASH_ATTEMPTS})", notify=True)
+        if attempts < MAX_FLASH_ATTEMPTS:
+            return
+        target = move_to_failed(firmware)
+        log("error", f"La mitad {SIDE_NAMES[side]} falló {MAX_FLASH_ATTEMPTS} veces: su firmware pasó a {target}", notify=True)
+        self.popup.show("Sofle · error", f"No se pudo flashear la mitad {SIDE_NAMES[side]}", level="error", detail=f"{reason}; el firmware quedó en {target}")
+        time.sleep(DONE_DISPLAY_SECONDS)
+        self.failures.pop(side)
 
 
 def main():
