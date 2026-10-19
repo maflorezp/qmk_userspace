@@ -17,13 +17,15 @@ Uso: tools/flash_watcher.py [--countdown 5] [--once] [--no-popup] [--home-side r
   tras copiar el .uf2 espera a que la mitad arranque, compara la versión que reporta por USB con
   la del .uf2 y, si coinciden, restaura el respaldo y mueve el .uf2 a firmware/flashed/.
 - La ventana de eww (tools/eww) queda visible hasta que las dos mitades están al día. Sus botones
-  escriben en /tmp/sofle-flash-control: "now" (flashear ya) o "postpone" (posponer 5 minutos).
+  escriben en /tmp/sofle-flash-control: "now" (flashear ya), "postpone" (posponer 5 minutos) o
+  "close" (cerrar un aviso).
 - Si la cola trae la marca keymap-reset (build.sh keymap), las capas y los encoders vuelven a los de
   keymap.c en lugar de los del respaldo; lo demás (macros, luces, configuración) sí se restaura.
 - Antes de la cuenta regresiva revisa que el kernel en uso pueda montar la unidad RPI-RP2 (módulo
   usb-storage). Tras actualizar el kernel sin reiniciar, sus módulos ya no están en disco: la mitad
   entraba en modo de carga, la unidad nunca aparecía y se reintentaba sin fin. Ahora avisa que hay
-  que reiniciar el PC y conserva la cola.
+  que reiniciar el PC y conserva la cola. Ese aviso se cierra con su botón o solo a los
+  PROBLEM_POPUP_SECONDS; después queda en el log y en la notificación.
 - Si la mitad entra en modo de carga y su unidad no aparece, cuenta como un intento fallido.
 - Si una mitad falla MAX_FLASH_ATTEMPTS veces, o el watcher se cae, los .uf2 pasan a
   firmware/failed/: así ni el modo de carga automático ni la unidad .path de systemd reintentan
@@ -73,6 +75,7 @@ BACKUP_REFRESH_SECONDS = 30
 POSTPONE_SECONDS = 300
 SETTLE_SECONDS = 3  # espera tras el reinicio, a que el teclado termine de arrancar
 DONE_DISPLAY_SECONDS = 5
+PROBLEM_POPUP_SECONDS = 120  # el aviso de que no se puede flashear se cierra solo tras este tiempo
 MAX_FLASH_ATTEMPTS = 2  # intentos fallidos por mitad antes de sacar su .uf2 de la cola
 USB_SIDE_NAMES = {"izquierda": "left", "derecha": "right"}
 REBOOT_TIMEOUT = 15
@@ -107,8 +110,8 @@ class Popup:
     def _eww(self, *args):
         return subprocess.run(["eww", "-c", str(EWW_CONFIG), *args], capture_output=True, text=True, check=False)
 
-    def show(self, title, message, level="info", countdown="", detail="", buttons=False):
-        state = (title, message, level, countdown, detail, buttons)
+    def show(self, title, message, level="info", countdown="", detail="", buttons=False, closable=False):
+        state = (title, message, level, countdown, detail, buttons, closable)
         if not self.enabled or state == self.shown:
             return
         if self._eww("ping").returncode != 0:
@@ -122,6 +125,7 @@ class Popup:
             f"sofle_countdown={countdown}",
             f"sofle_detail={detail}",
             f"sofle_buttons={'true' if buttons else 'false'}",
+            f"sofle_closable={'true' if closable else 'false'}",
         )
         if not self.is_open:
             self._eww("open", EWW_WINDOW)
@@ -350,6 +354,7 @@ class Watcher:
         self.booting_side = None
         self.booting_until = 0.0
         self.reported_problem = None
+        self.problem_popup_until = 0.0
 
     def run(self):
         PENDING_DIR.mkdir(parents=True, exist_ok=True)
@@ -464,7 +469,13 @@ class Watcher:
             if problem != self.reported_problem:
                 log("error", f"No se puede flashear: {problem}. El firmware sigue en cola", notify=True)
                 self.reported_problem = problem
-            self.popup.show("Sofle · no se puede flashear", "Reinicia el PC para flashear", level="error", detail=problem)
+                self.problem_popup_until = now + PROBLEM_POPUP_SECONDS
+            if control == "close":
+                self.problem_popup_until = 0.0
+            if now < self.problem_popup_until:
+                self.popup.show("Sofle · no se puede flashear", "Reinicia el PC para flashear", level="error", detail=problem, closable=True)
+            else:
+                self.popup.close()
             return
         self.reported_problem = None
 
