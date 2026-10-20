@@ -75,6 +75,7 @@ BACKUP_REFRESH_SECONDS = 30
 POSTPONE_SECONDS = 300
 SETTLE_SECONDS = 3  # espera tras el reinicio, a que el teclado termine de arrancar
 DONE_DISPLAY_SECONDS = 5
+POPUP_CHECK_SECONDS = 10  # cada cuánto se comprueba que el demonio de eww siga respondiendo
 PROBLEM_POPUP_SECONDS = 120  # el aviso de que no se puede flashear se cierra solo tras este tiempo
 MAX_FLASH_ATTEMPTS = 2  # intentos fallidos por mitad antes de sacar su .uf2 de la cola
 USB_SIDE_NAMES = {"izquierda": "left", "derecha": "right"}
@@ -100,23 +101,34 @@ def log(level, message, notify=False):
 
 
 class Popup:
-    """Ventana de eww al centro de la pantalla; solo se actualiza cuando cambia lo que muestra."""
+    """Ventana de eww al centro de la pantalla; solo se actualiza cuando cambia lo que muestra.
+
+    Si el servicio arranca con el PC, el demonio de eww puede nacer antes que la sesión gráfica:
+    queda vivo pero sin responder y la ventana nunca aparece. Por eso cada POPUP_CHECK_SECONDS se
+    comprueba que responda y, si no, se relanza y se vuelve a mostrar lo último.
+    """
 
     def __init__(self, enabled):
         self.enabled = enabled and shutil.which("eww") is not None
         self.is_open = False
         self.shown = None
+        self.next_check = 0.0
 
     def _eww(self, *args):
         return subprocess.run(["eww", "-c", str(EWW_CONFIG), *args], capture_output=True, text=True, check=False)
 
     def show(self, title, message, level="info", countdown="", detail="", buttons=False, closable=False):
         state = (title, message, level, countdown, detail, buttons, closable)
-        if not self.enabled or state == self.shown:
+        if not self.enabled:
             return
-        if self._eww("ping").returncode != 0:
-            subprocess.Popen(["eww", "-c", str(EWW_CONFIG), "daemon"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            time.sleep(1)
+        if state == self.shown:
+            if time.monotonic() < self.next_check:
+                return
+            self.next_check = time.monotonic() + POPUP_CHECK_SECONDS
+            if self._eww("ping").returncode == 0:
+                return
+            log("warn", "El demonio de eww no responde: lo relanzo")
+        self._ensure_daemon()
         self._eww(
             "update",
             f"sofle_title={title}",
@@ -131,6 +143,19 @@ class Popup:
             self._eww("open", EWW_WINDOW)
             self.is_open = True
         self.shown = state
+
+    def _ensure_daemon(self):
+        if self._eww("ping").returncode == 0:
+            return
+        # Por si quedó uno colgado con esta configuración. No se usa pkill: todos los demonios de eww
+        # se llaman "eww daemon" y se matarían también los de la configuración propia del escritorio.
+        self._eww("kill")
+        subprocess.Popen(["eww", "-c", str(EWW_CONFIG), "daemon"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        self.is_open = False
+        for _ in range(10):
+            time.sleep(0.5)
+            if self._eww("ping").returncode == 0:
+                return
 
     def close(self):
         if self.enabled and self.is_open:
