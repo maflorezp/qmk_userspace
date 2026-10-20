@@ -749,6 +749,11 @@
       "name": "Pantalla",
       "title": "Alterna entre la OLED y la pantalla a color; se recuerda al reiniciar",
       "shortName": "Pant"
+    },
+    {
+      "name": "Juegos",
+      "title": "Abre el menú de juegos en la pantalla a color; mientras se juega ninguna tecla llega al PC",
+      "shortName": "Jueg"
     }
   ]
 }

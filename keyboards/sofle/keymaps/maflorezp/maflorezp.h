@@ -16,6 +16,7 @@ enum custom_keycodes {
     CK_RGB1 = QK_KB_0,
     CK_HAND,
     CK_DISP,
+    CK_GAME,
 };
 
 // Tap dances (lógica en tap_dance.c, arreglo tap_dance_actions en keymap.c)
@@ -157,6 +158,13 @@ void i2c_scan_task(void);
 void lcd_init(void);
 void lcd_toggle(void);
 void lcd_task(void);
+// --- Modo juego (game_mode.c): CK_GAME abre el menú de juegos en la pantalla a color ---
+bool game_mode_active(void);
+void game_mode_toggle(void);
+void game_mode_exit(void);
+// Atiende las teclas mientras se juega; devuelve false si la tecla no debe seguir hacia el PC
+bool game_mode_process_record(uint16_t keycode, keyrecord_t *record);
+void game_mode_task(void);
 bool lcd_is_active(void);
 painter_device_t lcd_device(void);
 void             lcd_panel_setup(void);

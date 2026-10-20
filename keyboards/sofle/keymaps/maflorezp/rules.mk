@@ -57,6 +57,8 @@ SRC += lcd.c lcd_test.c lcd_probe.c
 # emulador del PC (tools/lcd_emulator)
 VPATH += $(KEYMAP_PATH)/games $(KEYMAP_PATH)/screen
 SRC += game_font.c status_screen.c
+# Modo juego: CK_GAME abre el menú de juegos (game_mode.c)
+SRC += game_mode.c game_system.c game_blocks.c game_ui.c game_car.c game_tetris.c game_breakout.c game_snake.c game_typing.c
 
 SRC += settings.c rgb.c hid_protocol.c version.c clock.c split_master.c tap_dance.c
 

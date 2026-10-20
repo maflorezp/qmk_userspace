@@ -156,6 +156,13 @@ void lcd_task(void) {
     if (!lcd_is_active() || !ready || lcd_probe_in_control()) {
         return;
     }
+    // Mientras se juega, la pantalla es del juego y la luz de fondo no se apaga
+    if (game_mode_active()) {
+        gpio_write_pin_high(LCD_BACKLIGHT_PIN);
+        game_mode_task();
+        qp_flush(lcd);
+        return;
+    }
     if (timer_elapsed32(status_timer) < LCD_STATUS_INTERVAL_MS) {
         return;
     }
@@ -174,6 +181,7 @@ void lcd_task(void) {
 static void apply(void) {
     ready = false;
     lcd_probe_release();
+    game_mode_exit();
     if (!lcd_is_active()) {
         qp_power(lcd, false);
         gpio_write_pin_low(LCD_BACKLIGHT_PIN);
