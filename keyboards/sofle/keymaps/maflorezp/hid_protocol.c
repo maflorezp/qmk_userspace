@@ -18,7 +18,7 @@ enum custom_hid_command {
     HID_CMD_OLED_CLEAR = 0x91, // borra el texto y vuelve a la pantalla de estado
 };
 
-#define HID_PROTOCOL_VERSION 7
+#define HID_PROTOCOL_VERSION 8
 #define HID_PACKET_SIZE 32
 #define MESSAGE_DURATION_MS 5000
 
@@ -41,6 +41,12 @@ const char *raw_hid_message(void) {
 static bool handle_custom_command(uint8_t *data, uint8_t length) {
     if (data[0] < HID_CMD_PING) {
         return false;
+    }
+    // Diagnóstico de la pantalla a color: responde ya y lo ejecuta en lcd_probe_task()
+    if (lcd_probe_receive(data, length)) {
+        uint8_t ack[HID_PACKET_SIZE] = {data[0], 1};
+        raw_hid_send(ack, length);
+        return true;
     }
 
     uint8_t response[HID_PACKET_SIZE] = {0};
@@ -128,6 +134,7 @@ void raw_hid_receive(uint8_t *data, uint8_t length) {
 
 // Salta al bootloader (misma ruta que QK_BOOT: tira en rojo y "CARGA" en la OLED) cuando pasó el retardo
 void hid_protocol_task(void) {
+    lcd_probe_task();
     if (bootloader_requested && timer_elapsed32(bootloader_timer) > BOOTLOADER_DELAY_MS) {
         reset_keyboard();
     }

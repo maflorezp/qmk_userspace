@@ -153,7 +153,7 @@ static bool backlight_wanted(const status_state_t *state) {
 
 void lcd_task(void) {
     static uint32_t status_timer = 0;
-    if (!lcd_is_active() || !ready) {
+    if (!lcd_is_active() || !ready || lcd_probe_in_control()) {
         return;
     }
     if (timer_elapsed32(status_timer) < LCD_STATUS_INTERVAL_MS) {
@@ -173,6 +173,7 @@ void lcd_task(void) {
 // Si un cable hizo falso contacto, oprimir CK_DISP dos veces lo reintenta.
 static void apply(void) {
     ready = false;
+    lcd_probe_release();
     if (!lcd_is_active()) {
         qp_power(lcd, false);
         gpio_write_pin_low(LCD_BACKLIGHT_PIN);

@@ -158,3 +158,18 @@ painter_device_t lcd_device(void);
 void             lcd_panel_setup(void);
 // Patrón de prueba de la pantalla a color (lcd_test.c)
 void lcd_test_draw(painter_device_t device);
+// Diagnóstico de la pantalla a color por Raw HID (lcd_probe.c, órdenes 0xA0-0xA4; ver tools/lcd_probe.py)
+enum lcd_probe_command {
+    LCD_PROBE_PINS    = 0xA0, // byte 1: nivel de cada pin (bit 0 SCL, 1 SDA, 2 CS, 3 DC, 4 BL)
+    LCD_PROBE_INIT    = 0xA1, // bytes 1-2 divisor (little endian), 3 modo SPI, 4 rotación, 5-6 desplazamiento x/y
+    LCD_PROBE_RAW     = 0xA2, // byte 1 comando, 2 cantidad de parámetros, 3.. parámetros
+    LCD_PROBE_FILL    = 0xA3, // bytes 1-3: tono, saturación y brillo de todo el panel
+    LCD_PROBE_BITBANG = 0xA4, // bytes 1-2 color RGB565 (alto, bajo), 3 invertir colores: inicio y relleno por software
+    LCD_PROBE_DEMO    = 0xA5, // byte 1: 1 enciende la animación, 0 la apaga; byte 2: píxeles por cuadro
+    LCD_PROBE_FIRST   = LCD_PROBE_PINS,
+    LCD_PROBE_LAST    = LCD_PROBE_DEMO,
+};
+bool lcd_probe_receive(const uint8_t *data, uint8_t length);
+void lcd_probe_task(void);
+bool lcd_probe_in_control(void);
+void lcd_probe_release(void);

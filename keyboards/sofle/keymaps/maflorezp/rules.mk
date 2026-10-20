@@ -52,7 +52,7 @@ endif
 # Pantalla a color ST7789 por SPI. Mientras siga la OLED, la tecla CK_DISP alterna entre las dos.
 QUANTUM_PAINTER_ENABLE = yes
 QUANTUM_PAINTER_DRIVERS += st7789_spi
-SRC += lcd.c lcd_test.c
+SRC += lcd.c lcd_test.c lcd_probe.c
 # La pantalla de estado y la fuente se escriben solo con game_host.h, para que corran también en el
 # emulador del PC (tools/lcd_emulator)
 VPATH += $(KEYMAP_PATH)/games $(KEYMAP_PATH)/screen
