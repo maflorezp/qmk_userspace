@@ -12,18 +12,18 @@ del teclado de forma más legible y agregue un modo de ayuda que diga qué hace 
 - Módulo GMT147SPI: 1.47" IPS, 172x320, controlador ST7789P3, 3.3 V.
 - Va en la mitad **derecha** (la del USB): recibe la hora y los mensajes sin pasar por el enlace
   entre mitades y ve las teclas de todo el teclado.
-- Cableado al Pico (bus SPI0):
+- Cableado al Pico (bus SPI1, pines físicos 15 a 20 más el 3V3):
 
 | Pantalla | Pico |
 |---|---|
 | GND | GND |
 | VDD | 3V3 |
-| SCL | GP18 |
-| SDA | GP19 |
-| RES | GP15 |
-| DC | GP14 |
+| SCL | GP14 |
+| SDA | GP15 |
+| RES | 3V3, junto con VDD (reinicio por software) |
+| DC | GP12 |
 | CS | GP13 |
-| BL | GP12 |
+| BL | GP11 |
 
 - El controlador maneja 240 columnas y el panel usa las 172 centrales: desplazamiento (34, 0).
 - La OLED derecha se retira; la izquierda (dañada) se desactiva en el firmware.
@@ -45,7 +45,7 @@ De arriba hacia abajo, en vertical:
 No se muestra el estado del micrófono. Cada dato tiene posición fija: nada se desplaza.
 
 La luz de fondo se apaga por inactividad con el tiempo que hoy usa la OLED (ajuste de VIA) y su
-brillo sale del ajuste de brillo de pantalla, por PWM en GP12. Se eliminan las animaciones contra el
+brillo sale del ajuste de brillo de pantalla, por PWM en GP11. Se eliminan las animaciones contra el
 quemado (culebrita y Pac-Man) y sus ajustes, porque este panel no se quema.
 
 ## Modo ayuda
@@ -141,7 +141,11 @@ también se practican las capas). Lo que cae se toma del keymap real, incluido l
 - Fuentes de Quantum Painter generadas con `qmk painter-convert-graphics` / `painter-make-font`:
   una grande para la hora y una mediana para el resto. Los íconos (ayuda "?", Win, Ctrl, Alt,
   Shift) van como glifos adicionales de la fuente mediana, para poder mezclarlos con texto.
-- `oled.c` y las animaciones se eliminan; `lcd_test.c` queda como diagnóstico (`./build.sh lcdtest`).
+- `oled.c` y las animaciones se eliminan; `lcd_test.c` queda como diagnóstico. Hasta entonces, la
+  tecla `CK_DISP` ("Pantalla", en ADJUST sobre la P) alterna entre la OLED y la pantalla de estado, y
+  la elección se recuerda al reiniciar.
+- La primera versión de la pantalla normal (`screen/status_screen.c`) usa la fuente de 5x7 de los
+  juegos escalada, sin fuentes de Quantum Painter; la luz de fondo se enciende y apaga, sin PWM.
 - Ajustes: se quitan los de animación y se agrega el tiempo de la ayuda. Cambia la estructura, así
   que sube `SETTINGS_MAGIC` (se restablecen los ajustes y el keymap de VIA; el flasheo los restaura
   del respaldo).
@@ -154,8 +158,8 @@ también se practican las capas). Lo que cae se toma del keymap real, incluido l
 
 ## Pruebas
 
-1. `./build.sh lcdtest`: marco blanco completo, franjas roja/verde/azul, cuadrado blanco arriba a
-   la izquierda. Valida cableado, colores, orientación y desplazamiento.
+1. `CK_DISP` en el firmware normal: marco blanco completo, franjas roja/verde/azul, cuadrado blanco
+   arriba a la izquierda. Valida cableado, colores, orientación y desplazamiento.
 2. Pantalla normal: cada dato en hardware (capas, bloqueos, modificadores, REC, mensaje por HID,
    versión distinta) y apagado por inactividad.
 3. Ayuda: nombres contra el keymap leído por HID; nada llega al PC (captura de hidraw); salida a

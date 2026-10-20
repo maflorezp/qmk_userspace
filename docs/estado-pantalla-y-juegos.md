@@ -1,6 +1,6 @@
 # Pantalla a color, juegos y joystick: estado para retomar
 
-Fecha: 2026-10-18. Rama `feat/via` del fork `maflorezp/qmk_userspace`.
+Fecha: 2026-10-20. Rama `feat/via` del fork `maflorezp/qmk_userspace`.
 
 Este documento resume dónde quedó el trabajo para continuarlo en una sesión nueva. El diseño
 completo y aprobado de la pantalla está en [pantalla-color-diseno.md](pantalla-color-diseno.md):
@@ -20,21 +20,28 @@ leerlo primero.
 ### Pantalla
 
 - Módulo GMT147SPI: 1,47" IPS, 172x320, controlador ST7789P3, 3,3 V. **Ya llegó.**
-- Va en la mitad derecha, la del USB. Mauricio la va a probar primero en un protoboard, con
-  cables Dupont, antes de instalarla.
+- Va en la mitad derecha, la del USB. **Probada y funcionando en protoboard** (2026-10-20); falta
+  soldarla. La primera de las dos que llegaron vino con el vidrio quebrado: se veía estática de
+  colores con la luz de fondo encendida. Con la segunda todo funcionó con el mismo cableado.
+- Orientación: con los pines hacia abajo, sin girar (`QP_ROTATION_0`).
 - El módulo viene sin pines soldados. El pin 1, de pad cuadrado y el de más a la izquierda, es GND.
   Orden de los pines: GND, VDD, SCL, SDA, RES, DC, CS, BL.
 
 | Pantalla | Pico derecho | Pin físico |
 |---|---|---|
-| GND | GND | 18 |
+| GND | GND | 13 (el 18 lo usa la OLED) |
 | VDD | 3V3 (OUT) | 36 |
-| SCL | GP18 | 24 |
-| SDA | GP19 | 25 |
-| RES | GP15 | 20 |
-| DC | GP14 | 19 |
+| SCL | GP14 | 19 |
+| SDA | GP15 | 20 |
+| RES | 3V3 (OUT), cable propio junto al de VDD | 36 |
+| DC | GP12 | 16 |
 | CS | GP13 | 17 |
-| BL | GP12 | 16 |
+| BL | GP11 | 15 |
+
+- Va en el bus SPI1 porque los pines del SPI0 (GP18 y GP19) quedan en la columna ocupada por la
+  OLED y la matriz. Así las señales caen en los pines 15 a 20, con el 3V3 del 36 y el GND del 13.
+- RES no necesita GPIO: va fijo a 3V3 y el driver reinicia el panel por software al arrancar.
+  Nunca dejarlo suelto, porque leería ruido.
 
 - La OLED derecha se va a retirar. La pantalla no usa sus pines (GP16 y GP17), así que para la
   prueba da igual si sigue puesta. Sin OLED el firmware no falla: QMK ignora la OLED si no inicia.
@@ -56,74 +63,59 @@ leerlo primero.
 | Diseño de la pantalla, modo ayuda, pantalla izquierda, lluvia de símbolos y juegos | `docs/pantalla-color-diseno.md` | `e05daf0` a `cff44e2` |
 | Juego de carritos y emulador de la pantalla para el PC | `games/`, `tools/lcd_emulator/` | `737fa03` |
 | Tetris y menú de juegos | `games/` | `e225de2` |
+| Breakout, culebrita, práctica de escritura y pantalla de estado (emulador) | `games/`, `screen/`, `tools/lcd_emulator/` | este hito |
+| Pantalla a color en el firmware: estado, modo juego y diagnóstico por HID | `lcd*.c`, `game_mode.c` | este hito |
 
-### Sin commitear: prueba de encendido de la pantalla
+### Pantalla a color en el firmware
 
-Escrita pero sin compilar ni probar. Se commitea cuando se verifique en el hardware.
+- **Tecla `CK_DISP`** ("Pantalla" en VIA), en ADJUST sobre la P: alterna entre la OLED y la
+  pantalla a color. Se recuerda al reiniciar (palabra de 32 bits del teclado en la EEPROM; `EE_CLR`
+  la devuelve a la OLED).
+- **Bus:** SPI1 a 125 MHz / 8 = 15,6 MHz, modo 3, desplazamiento (34, 0). Refresco del panel
+  subido a 111 Hz (comando `0xC6`), porque sin la patilla TE se veían cuadros a medio pintar.
+- **Pantalla de estado** (`screen/status_screen.c`, portátil como los juegos): hora grande y fecha
+  con el día, capa con el color de la tira, CAPS/NUM, íconos de Win/Ctrl/Alt/Shift, REC, velocidad
+  de escritura, mensaje del PC o ajuste de VIA y versión (roja si las mitades no coinciden). Solo
+  redibuja las zonas cuyo dato cambió. La luz de fondo se apaga con el tiempo sin teclear de la
+  pantalla en VIA.
+- **Diagnóstico sin recompilar** (`lcd_probe.c` + `tools/lcd_probe.py`, protocolo HID v8):
+  `pins` (niveles fijos para medir con multímetro), `init` (velocidad, modo, rotación y
+  desplazamiento), `raw` (comando directo), `fill`, `bitbang` (SPI por software) y `demo` (cuadrado
+  que rebota). Mientras se usa, la pantalla de estado no dibuja; `CK_DISP` dos veces la devuelve.
 
-- `lcd_test.c` (nuevo): dibuja un marco blanco de 1 px, tres franjas (roja, verde y azul) y un
-  cuadrado blanco de 24 px arriba a la izquierda. Se redibuja cada 3 s, así que se recupera si un
-  cable hizo falso contacto al arrancar. SPI a 125 MHz / 16 = 7,8 MHz, lento a propósito para los
-  cables del protoboard; modo SPI 3; desplazamiento del panel (34, 0).
-- `config.h`: SPI0 en GP18 y GP19, sin MISO, y los pines CS, DC, RES y BL.
-- `rules.mk`: con `-e LCD_TEST=yes` activa Quantum Painter con `st7789_spi` y la variante
-  `lcdtest`.
-- `keymap.c` y `maflorezp.h`: llaman a `lcd_test_init()` y `lcd_test_task()` bajo
-  `#ifdef LCD_TEST_ENABLE`.
-- `build.sh`: opción `./build.sh lcdtest`.
+### Juegos en el firmware
 
-## Juegos
-
-Corren igual en el teclado y en el PC: solo dependen de `games/game_host.h`, que ofrece pintar
-rectángulos con color HSV y guardar o leer el récord de cada juego. En el teclado lo va a
-implementar Quantum Painter; en el PC, el emulador con SDL2. Todavía no entran en el firmware.
-
-| Archivo | Qué hace |
-|---|---|
-| `game_host.h` | Interfaz con la pantalla: 172x320, colores, entradas (izquierda, derecha, arriba, abajo, acción, atrás) y récords |
-| `game_font.c` | Letras de 5x7 dibujadas con rectángulos (0-9, A-Z, `:`, `-`, `!`) |
-| `game_blocks.c` | Tablero de cuadros estilo Brick Game; solo redibuja los cuadros que cambian, para ahorrar SPI |
-| `game_ui.c` | Marcador superior y recuadro de mensajes |
-| `game_car.c` | Carritos: 3 carriles, olas de 1 o 2 carros, sube de nivel cada 8 puntos |
-| `game_tetris.c` | Tetris: tablero de 10x20 en cuadros de 14 px, bolsa de 7 piezas y vista de la siguiente |
-| `game_system.c` | Menú "JUEGOS" con el récord de cada juego; Esc vuelve al menú y, desde el menú, sale |
+- **Tecla `CK_GAME`** ("Juegos" en VIA), en ADJUST sobre la F. Necesita la pantalla a color elegida.
+- Mientras se juega ninguna tecla llega al PC (`game_mode.c`): A/J, D/L, W/I, S/K, las flechas de
+  LOWER y la rueda mueven; Espacio, Enter o el clic de la rueda son la acción; Esc vuelve al menú y,
+  desde el menú, sale. ADJUST + F sale directo.
+- Juegos: Carritos, Tetris, Breakout, Culebrita y Escritura.
+- **Escritura:** pantalla de configuración con casillas (minúsculas, mayúsculas, números, símbolos,
+  tildes) y velocidad 1 a 9; la elección se guarda. Interpreta las teclas como la distribución del
+  PC, US internacional con AltGr: Shift, AltGr + vocal, AltGr + n/y/1//, y la tilde muerta.
+- **Récords** en el bloque de usuario de la EEPROM, después de la configuración: 8 espacios de 32
+  bits (el último guarda las preferencias de Escritura). El respaldo del watcher no los incluye.
+- La fuente de 5x7 (`game_font.c`) trabaja en Latin-1: minúsculas, tildes, ñ, ü, ¿, ¡ y símbolos.
 
 ### Emulador
 
 ```
-tools/lcd_emulator/run.sh                 # ventana al doble de tamaño
-tools/lcd_emulator/run.sh --game tetris   # directo a un juego (car o tetris)
-tools/lcd_emulator/run.sh --script "action,wait:500,left,shot:/tmp/captura.ppm"
+tools/lcd_emulator/run.sh                  # menú de juegos, ventana al doble de tamaño
+tools/lcd_emulator/run.sh --game typing    # directo a un juego (car, tetris, breakout, snake, typing)
+tools/lcd_emulator/run.sh --status         # pantalla de estado con datos inventados
+tools/lcd_emulator/run.sh --script "action,wait:500,type:ñá,shot:/tmp/captura.ppm"
 ```
-
-- Controles: las flechas o la rueda del mouse hacen de flechas y de rueda; espacio, Enter o clic
-  hacen de clic; Esc vuelve; Q sale.
-- El modo `--script` corre sin ventana con tiempo simulado. Sirve para verificar con capturas
-  (PPM; se pasan a PNG con PIL) e informa cuántos píxeles se pintan por paso.
-- Compila con `-Wall -Wextra -Werror` en `/tmp/qmk-build/lcd_emulator`.
-- Riesgo conocido: en el peor caso, el carrito pinta unos 13.600 píxeles por paso, alrededor de
-  30 ms de SPI, y el paso más rápido es de 50 ms. Va justo; optimizar si en el hardware se nota.
 
 ## Siguientes pasos, en orden
 
-1. **Prueba de encendido**, cuando Mauricio diga "compila".
-   - `./build.sh lcdtest` compila el firmware normal **y lo encola en las dos mitades**. El
-     firmware de prueba queda aparte en `firmware/sofle_lcdtest-<versión>.uf2`, **sin encolar**.
-   - Hay que cargarlo a mano en la derecha con `./flash.sh firmware/sofle_lcdtest-<versión>.uf2
-     right`. **Antes de compilar, revisar que el watcher no lo pise** con el normal que quedó en
-     cola, porque él flashea lo pendiente en cuanto ve la mitad en modo de carga.
-   - Qué indica el patrón:
-     - si falta un lado del marco, el desplazamiento está mal;
-     - si los colores salen cambiados o invertidos, falla el orden RGB/BGR o la inversión;
-     - si sale en espejo o girado, está mal la rotación.
-   - Si pasa, commitear la prueba.
-2. **Breakout**, que es el siguiente juego, y luego la culebrita. Pong y la práctica de escritura
-   necesitan la pantalla izquierda.
-3. **Joystick**, cuando Mauricio confirme el diseño y tenga los materiales.
-4. **Las etapas del diseño:** pantalla normal, modo ayuda, pantalla izquierda, lluvia de símbolos
-   y los juegos dentro del firmware (`CK_GAME` y récords en la memoria del Pico).
+1. **Soldar la pantalla** con el cableado de la tabla. Hasta entonces, la OLED queda elegida.
+2. **Palabras por HID** para Escritura: el PC envía palabras y una casilla las mezcla con los
+   conjuntos. Falta diseñar de dónde salen las palabras y cómo se envían.
+3. **Joystick**: en pausa hasta que llegue el adaptador de FPC. Mauricio avisa cuándo se arranca.
+4. **Las etapas del diseño que faltan:** fuente más fina y brillo por PWM en la pantalla de estado,
+   modo ayuda, pantalla izquierda, lluvia de símbolos, y Pong (necesita la pantalla izquierda).
 
-## Joystick del Switch (propuesta, falta confirmar)
+## Joystick del Switch (propuesta, en pausa hasta que llegue el FPC)
 
 ### Contactos del flex
 
