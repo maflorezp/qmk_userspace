@@ -311,6 +311,13 @@ void display_show_overlay(const char *text) {
     overlay_timer                = timer_read32();
 }
 
+const char *display_overlay(void) {
+    if (overlay[0] != '\0' && timer_elapsed32(overlay_timer) >= OVERLAY_DURATION_MS) {
+        overlay[0] = '\0';
+    }
+    return overlay;
+}
+
 bool oled_task_user(void) {
 #ifdef OLED_TEST_ENABLE
     // Diagnóstico: todos los píxeles encendidos, sin apagado automático
@@ -318,6 +325,14 @@ bool oled_task_user(void) {
     oled_write_raw(all_on, sizeof(all_on));
     return false;
 #endif
+    // Con la pantalla a color elegida (CK_DISP) la OLED queda apagada; al volver, lo que se dibuja
+    // la enciende
+    if (lcd_is_active()) {
+        if (is_oled_on()) {
+            oled_off();
+        }
+        return false;
+    }
     // El valor que se está ajustando en VIA y los mensajes por HID se muestran aunque la
     // pantalla esté apagada por inactividad (lo que se dibuja la vuelve a encender)
     if (overlay[0] != '\0' && timer_elapsed32(overlay_timer) < OVERLAY_DURATION_MS) {

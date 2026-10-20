@@ -744,6 +744,11 @@
       "name": "Lado",
       "title": "Invierte el lado grabado en esta mitad y reinicia",
       "shortName": "Lado"
+    },
+    {
+      "name": "Pantalla",
+      "title": "Alterna entre la OLED y la pantalla a color; se recuerda al reiniciar",
+      "shortName": "Pant"
     }
   ]
 }

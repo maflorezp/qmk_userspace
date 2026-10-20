@@ -15,6 +15,7 @@ enum layers {
 enum custom_keycodes {
     CK_RGB1 = QK_KB_0,
     CK_HAND,
+    CK_DISP,
 };
 
 // Tap dances (lógica en tap_dance.c, arreglo tap_dance_actions en keymap.c)
@@ -136,6 +137,8 @@ void layer_colors_toggle_manual(void);
 void display_apply_settings(void);
 // Muestra un texto corto por unos segundos (por ejemplo el valor que se ajusta en VIA)
 void display_show_overlay(const char *text);
+// Texto que muestra display_show_overlay() mientras está vigente; vacío si no hay
+const char *display_overlay(void);
 
 #ifdef PIN_SCAN_ENABLE
 void        pin_scan_task(void);
@@ -145,3 +148,13 @@ const char *pin_scan_report(void);
 #ifdef I2C_SCAN_ENABLE
 void i2c_scan_task(void);
 #endif
+
+// --- Pantalla a color (lcd.c): mientras siga la OLED, CK_DISP alterna entre las dos ---
+void lcd_init(void);
+void lcd_toggle(void);
+void lcd_task(void);
+bool lcd_is_active(void);
+painter_device_t lcd_device(void);
+void             lcd_panel_setup(void);
+// Patrón de prueba de la pantalla a color (lcd_test.c)
+void lcd_test_draw(painter_device_t device);

@@ -49,6 +49,15 @@ ifeq ($(strip $(OLED_TEST)), yes)
     OPT_DEFS += -DOLED_TEST_ENABLE
 endif
 
+# Pantalla a color ST7789 por SPI. Mientras siga la OLED, la tecla CK_DISP alterna entre las dos.
+QUANTUM_PAINTER_ENABLE = yes
+QUANTUM_PAINTER_DRIVERS += st7789_spi
+SRC += lcd.c lcd_test.c
+# La pantalla de estado y la fuente se escriben solo con game_host.h, para que corran también en el
+# emulador del PC (tools/lcd_emulator)
+VPATH += $(KEYMAP_PATH)/games $(KEYMAP_PATH)/screen
+SRC += game_font.c status_screen.c
+
 SRC += settings.c rgb.c hid_protocol.c version.c clock.c split_master.c tap_dance.c
 
 # Versión del firmware: commit del userspace y tipo de build. Con cambios sin commitear se agrega

@@ -52,7 +52,7 @@ TD(TD_MODS_LEFT),     KC_A,        KC_S,        KC_D,        KC_F,        KC_G, 
 
 [_ADJUST] = LAYOUT(
      QK_BOOT,     XXXXXXX,     XXXXXXX,     EH_RGHT,     XXXXXXX,     CK_HAND,                               CK_HAND,     XXXXXXX,     TO(_RGB),    XXXXXXX, TO(_NUMERIC), TO(_QWERTY),
-      QK_RBT,     DM_REC1,     DM_REC2,     DM_PLY1,     DM_PLY2,     DM_RSTP,                               UG_NEXT,     UG_HUEU,     UG_SATU,     UG_VALU,     XXXXXXX,     XXXXXXX,
+      QK_RBT,     DM_REC1,     DM_REC2,     DM_PLY1,     DM_PLY2,     DM_RSTP,                               UG_NEXT,     UG_HUEU,     UG_SATU,     UG_VALU,     CK_DISP,     XXXXXXX,
       EE_CLR,     XXXXXXX,     XXXXXXX,     KC_CAPS,     XXXXXXX,     KC_BRIU,                               UG_PREV,     UG_HUED,     UG_SATD,     UG_VALD,     XXXXXXX,     XXXXXXX,
       KC_PWR,     KC_WAKE,     KC_SLEP,     XXXXXXX,     XXXXXXX,     KC_BRID,     XXXXXXX,     XXXXXXX,     UG_TOGG,     RGB_M_P,     RGB_M_B,     RGB_M_G,     RGB_M_K,     CK_RGB1,
                 OSM(M_CS),  OSM(M_WCA),   OSM(M_AS),     _______,     _______,                               _______,     _______,     _______,     _______,     _______
@@ -101,6 +101,12 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 soft_reset_keyboard();
             }
             return false;
+        case CK_DISP:
+            // Alterna entre la OLED y la pantalla a color de la mitad del USB
+            if (record->event.pressed) {
+                lcd_toggle();
+            }
+            return false;
     }
     return true;
 }
@@ -119,6 +125,7 @@ void keyboard_post_init_user(void) {
     rgb_init();
     settings_init();
     version_init();
+    lcd_init();
 }
 
 void housekeeping_task_user(void) {
@@ -126,6 +133,7 @@ void housekeeping_task_user(void) {
     rgb_task();
     hid_protocol_task();
     version_task();
+    lcd_task();
 #ifdef PIN_SCAN_ENABLE
     pin_scan_task();
 #endif

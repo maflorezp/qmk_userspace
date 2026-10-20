@@ -20,6 +20,22 @@
 #undef ENCODER_B_PINS_RIGHT
 #define ENCODER_B_PINS_RIGHT { GP3 }
 
+// Pantalla a color ST7789 (GMT147SPI) en el bus SPI1: SCL = GP14, SDA = GP15. Todo va en los pines
+// físicos 15 a 20 del Pico (el GND, del 13). No tiene línea de lectura (MISO) y RES va
+// fijo a 3V3: el driver reinicia el panel por software al arrancar.
+#undef SPI_DRIVER
+#define SPI_DRIVER SPID1
+#undef SPI_SCK_PIN
+#define SPI_SCK_PIN GP14
+#undef SPI_MOSI_PIN
+#define SPI_MOSI_PIN GP15
+#undef SPI_MISO_PIN
+#define SPI_MISO_PIN NO_PIN
+#define LCD_CS_PIN GP13
+#define LCD_DC_PIN GP12
+#define LCD_RESET_PIN NO_PIN
+#define LCD_BACKLIGHT_PIN GP11
+
 // OLED en el bus I2C0 (GP16 = SDA, GP17 = SCL)
 #define I2C_DRIVER I2CD0
 #define I2C1_SDA_PIN GP16
