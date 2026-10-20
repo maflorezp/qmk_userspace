@@ -6,7 +6,7 @@
 #include <string.h>
 
 // Configuración editable desde VIA: colores por capa, techo de brillo de la tira y ajustes de la
-// pantalla. Se guarda en el bloque de usuario de la EEPROM y la mitad USB se la envía a la otra
+// pantalla; además, los récords de los juegos. Se guarda en el bloque de usuario de la EEPROM y la mitad USB se la envía a la otra
 // por el cable cuando cambia y cada pocos segundos, por si la otra mitad se reinició.
 
 #define SETTINGS_MAGIC 0xCA
@@ -17,7 +17,17 @@ typedef struct {
     user_settings_t data;
 } stored_settings_t;
 
-_Static_assert(sizeof(stored_settings_t) == EECONFIG_USER_DATA_SIZE, "EECONFIG_USER_DATA_SIZE no coincide con la configuración guardada");
+// Récords de los juegos, a continuación de la configuración. Van aparte para que un récord nuevo no
+// cambie la estructura de la configuración (los respaldos la restauran solo si coincide).
+#define RECORDS_MAGIC 0x6B
+#define RECORDS_OFFSET sizeof(stored_settings_t)
+
+typedef struct __attribute__((packed)) {
+    uint8_t  magic;
+    uint32_t values[GAME_RECORD_COUNT];
+} stored_records_t;
+
+_Static_assert(sizeof(stored_settings_t) + sizeof(stored_records_t) == EECONFIG_USER_DATA_SIZE, "EECONFIG_USER_DATA_SIZE no coincide con lo guardado");
 _Static_assert(sizeof(user_settings_t) <= RPC_M2S_BUFFER_SIZE, "La configuración no cabe en un mensaje entre mitades");
 
 static const user_settings_t defaults = {
@@ -46,6 +56,7 @@ static const user_settings_t defaults = {
 };
 
 static stored_settings_t stored;
+static stored_records_t  records;
 static bool              sync_needed = true;
 static uint32_t          sync_timer  = 0;
 
@@ -77,6 +88,17 @@ void settings_save(void) {
     eeconfig_update_user_datablock(&stored, 0, sizeof(stored));
 }
 
+uint32_t settings_game_record(uint8_t game) {
+    return game < GAME_RECORD_COUNT ? records.values[game] : 0;
+}
+
+void settings_save_game_record(uint8_t game, uint32_t value) {
+    if (game < GAME_RECORD_COUNT) {
+        records.values[game] = value;
+        eeconfig_update_user_datablock(&records, RECORDS_OFFSET, sizeof(records));
+    }
+}
+
 static bool is_valid(const user_settings_t *data) {
     return data->rgb_limit_percent >= RGB_LIMIT_MIN_PERCENT && data->rgb_limit_percent <= 100 && data->display.brightness_percent <= 100 && data->display.blinks_per_second <= DISPLAY_MAX_BLINKS &&
            data->display.animation < ANIMATION_COUNT;
@@ -91,17 +113,28 @@ static void settings_slave_handler(uint8_t in_len, const void *in_data, uint8_t 
 
 void settings_init(void) {
     eeconfig_read_user_datablock(&stored, 0, sizeof(stored));
+    eeconfig_read_user_datablock(&records, RECORDS_OFFSET, sizeof(records));
+    // La zona de VIA (keymap y macros) va después de este bloque: si su tamaño cambió, sus datos
+    // quedaron desplazados. VIA solo valida con la fecha de compilación, así que en builds del mismo
+    // día no lo detecta: se reinicia aquí al keymap compilado (el flasheo restaura el respaldo).
+    bool layout_changed = false;
     if (stored.magic != SETTINGS_MAGIC || !is_valid(&stored.data)) {
         stored.magic = SETTINGS_MAGIC;
         stored.data  = defaults;
         settings_save();
-#ifdef VIA_ENABLE
-        // La zona de VIA (keymap y macros) va después de este bloque: si su tamaño cambió, sus
-        // datos quedaron desplazados. VIA solo valida con la fecha de compilación, así que en
-        // builds del mismo día no lo detecta: se reinicia aquí al keymap compilado.
-        eeconfig_init_via();
-#endif
+        layout_changed = true;
     }
+    if (records.magic != RECORDS_MAGIC) {
+        memset(&records, 0, sizeof(records));
+        records.magic = RECORDS_MAGIC;
+        eeconfig_update_user_datablock(&records, RECORDS_OFFSET, sizeof(records));
+        layout_changed = true;
+    }
+#ifdef VIA_ENABLE
+    if (layout_changed) {
+        eeconfig_init_via();
+    }
+#endif
     apply();
     transaction_register_rpc(RPC_ID_USER_SETTINGS, settings_slave_handler);
 }

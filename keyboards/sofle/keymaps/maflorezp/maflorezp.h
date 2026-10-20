@@ -128,6 +128,10 @@ void                   settings_save(void);
 void                   settings_init(void);
 void                   settings_task(void);
 uint8_t                settings_schema(void);
+// Récords de los juegos (uno por game_id_t de games/game_host.h; hay espacio para juegos futuros)
+#define GAME_RECORD_COUNT 8
+uint32_t settings_game_record(uint8_t game);
+void     settings_save_game_record(uint8_t game, uint32_t value);
 
 // --- Tira LED (rgb.c) y pantalla (oled.c): aplican la configuración ---
 void rgb_init(void);

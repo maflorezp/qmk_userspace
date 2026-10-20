@@ -90,9 +90,11 @@
 extern uint8_t rgblight_limit_val;
 #endif
 #define RGBLIGHT_LIMIT_VAL rgblight_limit_val
-// Configuración en la EEPROM (settings.c): 1 byte de control + 8 colores x (activo, tono, saturación)
-// + techo de brillo y apagado de la tira + 6 ajustes de la pantalla
-#define EECONFIG_USER_DATA_SIZE 33
+// Bloque de usuario en la EEPROM (settings.c):
+//   · configuración: 1 byte de control + 8 colores x (activo, tono, saturación) + techo de brillo y
+//     apagado de la tira + 6 ajustes de la pantalla = 33 bytes
+//   · récords de los juegos: 1 byte de control + 8 récords de 32 bits = 33 bytes
+#define EECONFIG_USER_DATA_SIZE 66
 // La configuración ya no cabe en los 32 bytes por defecto de un mensaje entre mitades
 #define RPC_M2S_BUFFER_SIZE 48
 // Mensajes entre mitades: la configuración editada en VIA y la versión del firmware
