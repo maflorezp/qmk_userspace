@@ -32,6 +32,9 @@ typedef enum {
 typedef enum {
     GAME_ID_CAR,
     GAME_ID_TETRIS,
+    GAME_ID_BREAKOUT,
+    GAME_ID_SNAKE,
+    GAME_ID_TYPING,
     GAME_ID_COUNT,
 } game_id_t;
 
@@ -41,3 +44,8 @@ void game_host_fill_rect(int16_t x, int16_t y, int16_t width, int16_t height, ga
 // Récord guardado de cada juego
 uint32_t game_host_record_load(game_id_t game);
 void     game_host_record_save(game_id_t game, uint32_t record);
+
+// Preferencias guardadas de la práctica de escritura (conjuntos elegidos y velocidad), en 32 bits
+// cuyo formato decide el juego. 0 si nunca se guardaron.
+uint32_t game_host_typing_preferences_load(void);
+void     game_host_typing_preferences_save(uint32_t preferences);

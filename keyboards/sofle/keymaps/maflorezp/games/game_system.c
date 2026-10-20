@@ -2,9 +2,12 @@
 
 #include <stdio.h>
 
+#include "game_breakout.h"
 #include "game_car.h"
 #include "game_font.h"
+#include "game_snake.h"
 #include "game_tetris.h"
+#include "game_typing.h"
 #include "game_ui.h"
 
 #define MENU_TITLE_SCALE 3
@@ -23,11 +26,16 @@ typedef struct {
     void (*init)(uint32_t seed, uint32_t now_ms);
     void (*input)(game_input_t input, uint32_t now_ms);
     void (*tick)(uint32_t now_ms);
+    // Solo los juegos que reciben texto; los demás lo dejan en NULL
+    void (*type)(uint8_t character, uint32_t now_ms);
 } game_entry_t;
 
 static const game_entry_t games[GAME_ID_COUNT] = {
     [GAME_ID_CAR]    = {"CARRITOS", game_car_init, game_car_input, game_car_tick},
     [GAME_ID_TETRIS] = {"TETRIS", game_tetris_init, game_tetris_input, game_tetris_tick},
+    [GAME_ID_BREAKOUT] = {"BREAKOUT", game_breakout_init, game_breakout_input, game_breakout_tick},
+    [GAME_ID_SNAKE]    = {"CULEBRITA", game_snake_init, game_snake_input, game_snake_tick},
+    [GAME_ID_TYPING]   = {"ESCRITURA", game_typing_init, game_typing_input, game_typing_tick, game_typing_type},
 };
 
 static const game_color_t title_color    = {43, 255, 255};
@@ -121,6 +129,18 @@ bool game_system_input(game_input_t input, uint32_t now_ms) {
         case GAME_INPUT_BACK:
             return false;
     }
+    return true;
+}
+
+bool game_system_wants_text(void) {
+    return current_game == GAME_ID_TYPING && game_typing_wants_text();
+}
+
+bool game_system_type(uint8_t character, uint32_t now_ms) {
+    if (!game_system_wants_text()) {
+        return false;
+    }
+    games[current_game].type(character, now_ms);
     return true;
 }
 
